@@ -2896,7 +2896,7 @@ var SB_URL='https://pgpdnqijznrjzgdqlqrm.supabase.co',
     SB_KEY='sb_publishable_oj7U6A-xsRL_p-aDpMhWTw_JzXk_Qfb',
     REQUIRE_LOGIN=false,  // login email dimatikan; pakai PIN (lihat pinGate)
     CHUNK=1000;
-var sb=null,sess=null,busy=false,timers={},dirty={},H={};
+var sb=null,sess=null,busy=false,timers={},dirty={},H={},cloudAt=0,lastSync=0,lastBk=0;
 var cdb=new Dexie('rekon_cloud');cdb.version(1).stores({kv:'&k'});
 var kget=function(k){return cdb.kv.get(k).then(function(r){return r&&r.v;});},kset=function(k,v){return cdb.kv.put({k:k,v:v});};
 var btn=document.getElementById('cloudBtn'),outBtn=document.getElementById('logoutBtn');
@@ -2928,13 +2928,13 @@ async function push(ds){
     if(ds==='um')await kset('um',ser(d.rows));
     var m=await sb.from('rekon_meta').upsert({dataset:ds,rev:rev,parts:n,total:d.rows.length,extra:d.extra,updated_at:new Date().toISOString()});
     if(m.error)throw m.error;
-    dirty[ds]=0;st('☁ Tersinkron');
+    dirty[ds]=0;cloudAt=Date.now();stamp();st('☁ Tersinkron');autoBackup();
   }catch(e){H[ds]=[];fail(e);}
 }
 async function pull(ds,force){
   var r=await sb.from('rekon_meta').select('*').eq('dataset',ds).maybeSingle();
   if(r.error)throw r.error;
-  var m=r.data;if(!m)return null;
+  var m=r.data;if(!m)return null;cloudAt=Math.max(cloudAt,Date.parse(m.updated_at)||0);
   if(!force&&(await kget('rev_'+ds))===m.rev)return false;
   var ps=await Promise.all(Array.from({length:m.parts},function(_,i){
     return sb.from('rekon_data').select('payload').eq('dataset',ds).eq('part',i).single();}));
@@ -2958,7 +2958,7 @@ async function syncAll(force){
       }
     }
     if(ch&&window.__syncRekonData)window.__syncRekonData();
-    st('☁ Tersinkron','Terakhir: '+new Date().toLocaleTimeString('id-ID'));
+    stamp();st('☁ Tersinkron','Terakhir: '+new Date().toLocaleTimeString('id-ID'));
   }catch(e){fail(e);}
   busy=false;
 }
@@ -2994,6 +2994,103 @@ async function start(){
   btn.onclick=function(){syncAll(true);};
 }
 st('☁ …');start().catch(fail);
+
+/* ---- Menu ☰ : Backup & Restore + Sync manual ---- */
+function fmt(t){return t?new Date(t).toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'-';}
+function stamp(){lastSync=Date.now();kset('lastSync',lastSync);renderInfo();}
+var dirH=null;
+var mb=document.createElement('button');mb.id='menuBtn';mb.type='button';mb.title='Menu Backup & Sync';mb.textContent='☰';
+mb.style.cssText='appearance:none;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#e8eef6;height:24px;width:30px;border-radius:6px;cursor:pointer;font-size:15px;margin-left:5px;line-height:1';
+document.querySelector('.main-tabbar').appendChild(mb);
+var pn=document.createElement('div');pn.id='bkPanel';pn.hidden=true;
+pn.innerHTML='<h4>💾 Backup &amp; Restore Semua Data</h4><div class="bi" id="bkInfo"></div>'
++'<button id="bkPick">🔗 Pilih Folder Google Drive (sekali saja)</button>'
++'<button id="bkNow" class="pri">💾 Backup Sekarang ke Google Drive</button>'
++'<button id="bkDl">⬇️ Unduh File Backup (manual)</button>'
++'<button id="bkRestDir">♻️ Restore dari Folder Google Drive</button>'
++'<button id="bkRestFile">📂 Restore dari File Backup...</button><input type="file" id="bkFile" accept=".json" hidden>'
++'<div class="bh">Backup mencakup: Rekap Penjualan, Rekap Uang Masuk, dan data Batal/Titip/Lunas. Gunakan "Restore" jika terjadi error atau data hilang. Pilih folder di dalam aplikasi Google Drive for Desktop (Chrome/Edge di komputer).</div><hr>'
++'<h4>☁️ Sync Antar-Device (Cloud)</h4><div class="bi" id="syInfo"></div>'
++'<button id="syUp" class="pri">⬆️ Upload Data Device Ini ke Cloud</button>'
++'<button id="syDown">⬇️ Ambil Data Terbaru dari Cloud</button>'
++'<div class="bh">Sinkron berjalan otomatis; tombol ini untuk memaksa. "Upload" menimpa data di cloud, "Ambil" menimpa data di device ini.</div>';
+document.body.appendChild(pn);
+var css=document.createElement('style');css.textContent='#bkPanel{position:fixed;top:32px;right:8px;z-index:3000;width:min(300px,94vw);max-height:88vh;overflow:auto;background:#fff;color:#172033;border:1px solid #cfd8e6;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.28);padding:12px;font:12.5px Arial,sans-serif}#bkPanel[hidden]{display:none}#bkPanel h4{margin:2px 0 6px;font-size:13px}#bkPanel .bi{color:#54627a;font-size:11.5px;margin-bottom:8px}#bkPanel .bh{color:#54627a;font-size:11px;margin:6px 0}#bkPanel button{display:block;width:100%;text-align:left;margin:6px 0;padding:9px 10px;border:1px solid #cfd8e6;border-radius:8px;background:#f5f8fc;color:#172033;font-size:12.5px;cursor:pointer}#bkPanel button.pri{background:#24508f;color:#fff;border-color:#24508f}#bkPanel button:disabled{opacity:.55}#bkPanel hr{border:0;border-top:1px solid #dde4ee;margin:12px 0}html[data-theme=dark] #bkPanel{background:#16202f;color:#e6edf6;border-color:#2b3a52}html[data-theme=dark] #bkPanel button{background:#1f2c40;color:#e6edf6;border-color:#33455f}html[data-theme=dark] #bkPanel button.pri{background:#2e62ad}html[data-theme=dark] #bkPanel .bi,html[data-theme=dark] #bkPanel .bh{color:#9fb0c8}';
+document.head.appendChild(css);
+function renderInfo(){
+  document.getElementById('bkInfo').textContent=(lastBk?'Backup terakhir: '+fmt(lastBk):'Belum pernah backup.')+' • '+(dirH?'Folder: '+dirH.name:'Folder Google Drive belum dipilih.');
+  document.getElementById('syInfo').textContent='Sync terakhir di device ini: '+fmt(lastSync)+' • Data di Cloud: '+fmt(cloudAt);
+}
+mb.onclick=function(e){e.stopPropagation();pn.hidden=!pn.hidden;if(!pn.hidden)renderInfo();};
+pn.onclick=function(e){e.stopPropagation();};
+document.addEventListener('click',function(){pn.hidden=true;});
+Promise.all([kget('lastSync'),kget('lastBk'),kget('dir')]).then(function(v){lastSync=v[0]||0;lastBk=v[1]||0;dirH=v[2]||null;renderInfo();});
+
+async function makeBackup(){
+  var a=await local('pj'),u=await local('um');
+  return ser({app:'REKONSi',v:1,savedAt:new Date().toISOString(),pj:a?{rows:a.rows,meta:a.extra}:{rows:[],meta:{}},um:{rows:u.rows}});
+}
+async function perm(h){var o={mode:'readwrite'};return (await h.queryPermission(o))==='granted'||(await h.requestPermission(o))==='granted';}
+async function writeFile(h,name,txt){var f=await h.getFileHandle(name,{create:true}),w=await f.createWritable();await w.write(txt);await w.close();}
+async function writeBackup(h){
+  var txt=await makeBackup(),d=new Date(),p=function(n){return String(n).padStart(2,'0');};
+  await writeFile(h,'REKONSi-backup-'+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+'.json',txt);
+  await writeFile(h,'REKONSi-backup-terbaru.json',txt);
+  lastBk=Date.now();kset('lastBk',lastBk);renderInfo();
+}
+async function autoBackup(){ // otomatis bila izin folder masih aktif (maks. tiap 5 menit)
+  try{if(!dirH||Date.now()-lastBk<300000)return;if((await dirH.queryPermission({mode:'readwrite'}))!=='granted')return;await writeBackup(dirH);}catch(e){}
+}
+async function applyBackup(txt){
+  var d;try{d=des(txt);}catch(e){}
+  if(!d||d.app!=='REKONSi'){alert('File ini bukan backup REKONSi.');return;}
+  var np=(d.pj&&d.pj.rows||[]).length,nu=(d.um&&d.um.rows||[]).length;
+  if(!confirm('Restore backup tanggal '+fmt(d.savedAt)+'?\n\nPenjualan: '+np.toLocaleString('id-ID')+' baris\nUang Masuk: '+nu.toLocaleString('id-ID')+' baris\n\nData di device ini akan DIGANTI (lalu ikut ke cloud).'))return;
+  if(np&&window.__pjCloud.ok()){await window.__pjCloud.replace(d.pj.rows,d.pj.meta||{});window.__cloudTouch('pj');}
+  if(nu){window.__umApply(d.um.rows,'Dipulihkan dari backup '+fmt(d.savedAt)+' • '+nu+' baris');window.__cloudTouch('um');}
+  if(window.__syncRekonData)window.__syncRekonData();
+  alert('Restore selesai.');
+}
+function guard(fn){return async function(){try{await fn();}catch(e){if(e&&e.name==='AbortError')return;console.warn(e);alert('Gagal: '+(e&&e.message||e));}};}
+document.getElementById('bkPick').onclick=guard(async function(){
+  if(!window.showDirectoryPicker){alert('Browser ini belum mendukung pilih folder. Pakai Chrome/Edge di komputer, atau gunakan "Unduh File Backup" lalu simpan ke Google Drive.');return;}
+  var h=await showDirectoryPicker({mode:'readwrite',id:'rekonsi-backup'});
+  dirH=h;await kset('dir',h);renderInfo();
+});
+document.getElementById('bkNow').onclick=guard(async function(){
+  if(!dirH){alert('Pilih folder Google Drive dulu (tombol paling atas).');return;}
+  if(!(await perm(dirH))){alert('Izin ke folder ditolak.');return;}
+  await writeBackup(dirH);alert('Backup tersimpan di folder "'+dirH.name+'".');
+});
+document.getElementById('bkDl').onclick=guard(async function(){
+  var a=document.createElement('a'),d=new Date().toISOString().slice(0,16).replace(/[-:T]/g,'');
+  a.href=URL.createObjectURL(new Blob([await makeBackup()],{type:'application/json'}));a.download='REKONSi-backup-'+d+'.json';a.click();
+  lastBk=Date.now();kset('lastBk',lastBk);renderInfo();
+});
+document.getElementById('bkRestDir').onclick=guard(async function(){
+  if(!dirH){alert('Pilih folder Google Drive dulu.');return;}
+  if(!(await perm(dirH))){alert('Izin ke folder ditolak.');return;}
+  var f;try{f=await (await dirH.getFileHandle('REKONSi-backup-terbaru.json')).getFile();}catch(e){alert('File REKONSi-backup-terbaru.json tidak ada di folder ini.');return;}
+  await applyBackup(await f.text());
+});
+var fi=document.getElementById('bkFile');
+document.getElementById('bkRestFile').onclick=function(){fi.value='';fi.click();};
+fi.onchange=guard(async function(){if(fi.files[0])await applyBackup(await fi.files[0].text());});
+document.getElementById('syUp').onclick=guard(async function(){
+  if(!sb){alert('Belum terhubung ke cloud.');return;}
+  if(!confirm('Upload data device ini ke cloud?\nData di cloud akan DITIMPA.'))return;
+  busy=true;var n=0;
+  try{for(var ds of ['pj','um']){var d=await local(ds);if(d&&d.rows.length){H[ds]=[];await push(ds);n++;}}}finally{busy=false;}
+  alert(n?'Upload selesai.':'Data di device ini kosong, tidak ada yang diunggah.');
+});
+document.getElementById('syDown').onclick=guard(async function(){
+  if(!sb){alert('Belum terhubung ke cloud.');return;}
+  if(!confirm('Ambil data terbaru dari cloud?\nData di device ini akan DITIMPA.'))return;
+  busy=true;var a,b;
+  try{dirty={};a=await pull('pj',true);b=await pull('um',true);}finally{busy=false;}
+  if(a===null&&b===null){alert('Belum ada data di cloud.');return;}
+  if(window.__syncRekonData)window.__syncRekonData();stamp();alert('Selesai. Data terbaru dari cloud sudah dimuat.');
+});
 
 /* ---- PWA ---- */
 var pwa=document.getElementById('pwaBtn'),dp=null;
