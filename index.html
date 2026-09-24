@@ -2239,6 +2239,7 @@ try {
   });
   window.__getPenjualanForRekon = async function(){
     try{
+      if (window.__pjReady) await window.__pjReady;
       var src = (useIDB && db) ? await db.tx.toArray() : rows.slice();
       return src.map(function(r){return {
         'TANGGAL': r.tanggal ?? r.Tanggal ?? '',
@@ -2962,7 +2963,8 @@ async function syncAll(force){
   busy=false;
 }
 window.__cloudTouch=function(ds){
-  dirty[ds]=1;clearTimeout(timers[ds]);
+  dirty[ds]=1;if(ds==='um'){try{kset('um',ser(window.__umGet()));}catch(e){}}
+  clearTimeout(timers[ds]);
   timers[ds]=setTimeout(function(){timers[ds]=0;push(ds);},ds==='pj'?2500:500);
 };
 
@@ -2983,7 +2985,7 @@ async function start(){
   outBtn.hidden=false;outBtn.title='Kunci (minta PIN lagi)';
   outBtn.onclick=function(){try{localStorage.removeItem('rk_pin');}catch(e){}location.reload();};
   await window.__pjReady;
-  try{var c=await kget('um');if(c&&!window.__umGet().length){var u=des(c);if(u.length)window.__umApply(u,'Data tersimpan di perangkat • '+u.length+' baris');}}catch(e){}
+  try{var c=await kget('um');if(c&&!window.__umGet().length){var u=des(c);if(u.length)window.__umApply(u,'Data tersimpan di perangkat • '+u.length+' baris');if(window.__syncRekonData)window.__syncRekonData();}}catch(e){}
   await syncAll();
   sb.channel('rk').on('postgres_changes',{event:'*',schema:'public',table:'rekon_meta'},function(){syncAll();}).subscribe();
   setInterval(syncAll,60000);
