@@ -500,12 +500,30 @@ html[data-theme="dark"] #tab-uangmasuk .kpi{background:var(--card);border-color:
 html[data-theme="dark"] #tab-uangmasuk .kpi .value{color:#93c5fd}
 html[data-theme="dark"] #tab-uangmasuk .tab{background:#1e2a3a;color:#94a3b8}
 html[data-theme="dark"] #tab-uangmasuk .tab.active{background:#1f4e78;color:#fff}
-html[data-theme="dark"] #tab-uangmasuk select,.search,.action,.dropbtn{background:#1a2535;color:#e2e8f0;border-color:#3a5068}
+html[data-theme="dark"] #tab-uangmasuk select,
+html[data-theme="dark"] #tab-uangmasuk .search,
+html[data-theme="dark"] #tab-uangmasuk .action,
+html[data-theme="dark"] #tab-uangmasuk .dropbtn{background:#1a2535;color:#e2e8f0;border-color:#3a5068}
+html[data-theme="dark"] #tab-uangmasuk .action.light{background:#1a2535;color:#e2e8f0;border-color:#3a5068}
+html[data-theme="dark"] #tab-uangmasuk .action.light:hover{background:#243447;border-color:#5b9bd5;color:#fff}
+html[data-theme="dark"] #tab-uangmasuk .action:hover{background:#243447;border-color:#5b9bd5}
+html[data-theme="dark"] #tab-uangmasuk .dropbtn:hover{background:#243447}
+html[data-theme="dark"] #tab-uangmasuk .dropdown-content{background:#1a2535;border-color:#2a3f55;color:#e2e8f0}
+html[data-theme="dark"] #tab-uangmasuk .dropdown-content label,
+html[data-theme="dark"] #tab-uangmasuk .dropdown-content button{color:#e2e8f0}
+html[data-theme="dark"] #tab-uangmasuk .dropdown-content label:hover,
+html[data-theme="dark"] #tab-uangmasuk .dropdown-content button:hover{background:#243447}
+html[data-theme="dark"] #tab-uangmasuk .dropdown-content .action{background:transparent;color:#e2e8f0}
+html[data-theme="dark"] #tab-uangmasuk .dropdown-content .action:hover{background:#243447}
 html[data-theme="dark"] #tab-uangmasuk .table-card{background:var(--card);border-color:var(--line)}
 html[data-theme="dark"] #tab-uangmasuk th{background:#1a3350;color:#e8f0fa}
 html[data-theme="dark"] #tab-uangmasuk td{background:#152033;border-bottom-color:#2a3f55;color:#e2e8f0}
 html[data-theme="dark"] #tab-uangmasuk tr:hover td{background:#1e3a5f}
 html[data-theme="dark"] #tab-uangmasuk tr.total-row td{background:#1a2a1a;color:#c8e6c8}
+html[data-theme="dark"] #tab-uangmasuk .empty{color:#94a3b8}
+html[data-theme="dark"] #tab-uangmasuk .footer{color:#94a3b8}
+html[data-theme="dark"] #tab-uangmasuk .um-delete-box{background:#152033 !important;border-top-color:#2a3f55 !important}
+html[data-theme="dark"] #tab-uangmasuk .um-delete-box select{background:#1a2535;color:#e2e8f0;border-color:#3a5068}
 html[data-theme="dark"] #tab-rekonsiliasi,#rekonFrame{background:#0f1724}
 
 </style>
@@ -678,7 +696,7 @@ html[data-theme="dark"] #tab-rekonsiliasi,#rekonFrame{background:#0f1724}
         <label class="file-btn">📂 Pilih File Excel<input id="fileInput" type="file" accept=".xlsx,.xls" style="display:none"></label>
         <button class="action" id="exportBtn">⬇️ Save All (Excel)</button>
         
-        <div style="padding: 10px 16px; border-top: 1px solid var(--line); background: #fafafa;">
+        <div class="um-delete-box" style="padding: 10px 16px; border-top: 1px solid var(--line); background: #fafafa;">
             <label style="font-size:10px; font-weight:700; color:var(--muted); display:block; margin-bottom:6px; text-transform:uppercase;">Hapus Data Bulan</label>
             <select id="deleteMonth" style="width:100%; padding:5px; border-radius:4px; border:1px solid #cbd5e1; font-size:11px; margin-bottom:6px; height:auto; box-shadow:none;">
                 <option value="">Semua Bulan</option>
@@ -2342,6 +2360,16 @@ function sheetDateFromName(name){
     const y=+m[1],mo=+m[2],d=+m[3];
     return sheetDateValid(d,mo,y)?sheetDatePad(d)+'/'+sheetDatePad(mo)+'/'+y:'';
   }
+  // Nama bulan Indonesia/Inggris + tahun opsional, mis. "Agustus", "Agustus 2025", "Aug 2025"
+  const monthMap={januari:1,january:1,jan:1,februari:2,february:2,feb:2,maret:3,march:3,mar:3,april:4,apr:4,mei:5,may:5,juni:6,june:6,jun:6,juli:7,july:7,jul:7,agustus:8,august:8,agu:8,aug:8,september:9,sep:9,sept:9,oktober:10,october:10,okt:10,oct:10,november:11,nov:11,desember:12,december:12,des:12,dec:12};
+  const low=s.toLowerCase().replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
+  m=low.match(/\b(januari|january|jan|februari|february|feb|maret|march|mar|april|apr|mei|may|juni|june|jun|juli|july|jul|agustus|august|agu|aug|september|sep|sept|oktober|october|okt|oct|november|nov|desember|december|des|dec)\b(?:\s+(\d{2,4}))?/);
+  if(m){
+    const mo=monthMap[m[1]];
+    let y=m[2]?+m[2]:new Date().getFullYear();
+    if(y<100)y+=2000;
+    return sheetDateValid(1,mo,y)?sheetDatePad(1)+'/'+sheetDatePad(mo)+'/'+y:'';
+  }
   return '';
 }
 function sheetDate(rows,name){
@@ -2498,9 +2526,11 @@ function isValidTanggal(v) {
 function getFilteredRowsByMonth(month) {
     if (!month) return state.rows;                                   // "Semua Bulan": semua baris, termasuk yang tanpa tanggal
     if (month === 'NO_DATE') return state.rows.filter(x => !isValidTanggal(x.Tanggal));   // baris tanpa tanggal tetap bisa dilihat
+    const mNorm = String(+month).padStart(2,'0');
     return state.rows.filter(x => {
         const parts = String(x.Tanggal == null ? '' : x.Tanggal).split('/');
-        return parts.length === 3 && parts[1] === month;
+        // bandingkan bulan dengan padding (08 === 8) agar filter Agustus selalu cocok
+        return parts.length === 3 && String(+parts[1]).padStart(2,'0') === mNorm;
     });
 }
 function renderDetail(){
@@ -2710,9 +2740,23 @@ async function handleFile(file){
     populateDateFilter();
     populateMonthFilters();
 
+    // Reset filter agar data yang baru di-upload langsung terlihat
+    ['filterBulanDetail','filterBulanHarian','filterBulanBulanan','filterBulanRekap','detailJenis','detailKategori','detailSales','detailSearch','rekapSearch'].forEach(id=>{
+      const el=document.getElementById(id); if(!el)return;
+      el.value='';
+    });
+    // Jika file hanya 1 bulan, otomatis pilih bulan itu di filter Detail
+    const pureMonths=[...newMonths].filter(Boolean).sort();
+    if(pureMonths.length===1){
+      const mm=pureMonths[0].slice(5,7);
+      const fd=document.getElementById('filterBulanDetail');
+      if(fd) fd.value=mm;
+    }
+
     updateKpi();renderDetail();renderHarian();renderBulanan();renderRekap();
     if(window.__cloudTouch)window.__cloudTouch('um');
     document.getElementById('footer').textContent=`File: ${file.name} • ${wb.SheetNames.length} sheet dibaca • ${rows.length.toLocaleString('id-ID')} baris faktur • bulan diperbarui: ${lbl} • bulan lain tidak diubah • total data kini ${merged.length.toLocaleString('id-ID')} baris.`;
+    try{ const fi=document.getElementById('fileInput'); if(fi) fi.value=''; }catch(e){}
   } catch(err){
     console.error('handleFile ERROR:', err);
     alert('Gagal membaca file:\n\n' + (err && err.message ? err.message : err) + '\n\nData sebelumnya tidak berubah.');
@@ -2795,13 +2839,15 @@ document.getElementById('clearDataBtn').onclick = () => {
             updateKpi(); renderDetail(); renderHarian(); renderBulanan(); renderRekap();
             populateSalesFilter(); populateDateFilter(); populateMonthFilters();
             document.getElementById('footer').textContent = 'Semua data berhasil dihapus.';
+            if(window.__cloudTouch)window.__cloudTouch('um');
         }
     } else {
         const monthName = monthSelect.options[monthSelect.selectedIndex].text;
         if(confirm(`Apakah Anda yakin ingin menghapus data untuk bulan ${monthName}?`)) {
             state.rows = state.rows.filter(x => {
                 const parts = String(x.Tanggal == null ? '' : x.Tanggal).split('/');
-                return !(parts.length === 3 && parts[1] === month);
+                const mNorm = String(+month).padStart(2,'0');
+                return !(parts.length === 3 && String(+parts[1]).padStart(2,'0') === mNorm);
             });
             state.rekap = buildRekap(state.rows);
             state.daily = buildDaily(state.rows);
@@ -2809,6 +2855,7 @@ document.getElementById('clearDataBtn').onclick = () => {
             updateKpi(); renderDetail(); renderHarian(); renderBulanan(); renderRekap();
             populateSalesFilter(); populateDateFilter(); populateMonthFilters();
             document.getElementById('footer').textContent = `Data bulan ${monthName} berhasil dihapus.`;
+            if(window.__cloudTouch)window.__cloudTouch('um');
         }
     }
 };
