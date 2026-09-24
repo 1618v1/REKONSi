@@ -2464,8 +2464,12 @@ function extractSheet(ws,name){
       if(bs==='CASH DROPPING'){jenis='CASH DROPPING';continue}
       if(bs==='TOTAL'){curSales='';curPenerima='';continue}
     }
-    if(!jenis || typeof b!=='number')continue;
+    if(!jenis)continue;
+    /* Baris transaksi dikenali dari No Faktur (>=8 digit) + Nama Toko, BUKAN dari kolom NO.
+       Kolom NO boleh kosong/rusak (mis. nomor urut terhapus) tanpa membuat baris terlewat. */
     const faktur=row[3]; if(faktur==null || String(faktur).trim()==='')continue;
+    if(!/^\d{8,}$/.test(String(faktur).trim().replace(/\s+/g,'')))continue;
+    if(row[4]==null || String(row[4]).trim()==='')continue;
     if(row[2]!=null && String(row[2]).trim()!==''){const p=parseSales(row[2]);curSales=p.sales;curPenerima=p.penerima}
     const mcash=num(row[9]),mtrans=num(row[10]),rcash=num(row[11]),rtrans=num(row[12]);
     const ket=row[13]; let total=num(row[14]); if(!(typeof row[14]==='number')) total=mcash+mtrans+rcash+rtrans;
