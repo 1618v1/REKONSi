@@ -2893,7 +2893,7 @@ try { window.toggleDropdown = toggleDropdown; } catch(e){}
 (function(){
 var SB_URL='https://pgpdnqijznrjzgdqlqrm.supabase.co',
     SB_KEY='sb_publishable_oj7U6A-xsRL_p-aDpMhWTw_JzXk_Qfb',
-    REQUIRE_LOGIN=true,   // false = tanpa login (butuh policy anon di SQL, data jadi publik)
+    REQUIRE_LOGIN=false,  // login email dimatikan; pakai PIN (lihat pinGate)
     CHUNK=1000;
 var sb=null,sess=null,busy=false,timers={},dirty={},H={};
 var cdb=new Dexie('rekon_cloud');cdb.version(1).stores({kv:'&k'});
@@ -2966,24 +2966,22 @@ window.__cloudTouch=function(ds){
   timers[ds]=setTimeout(function(){timers[ds]=0;push(ds);},ds==='pj'?2500:500);
 };
 
-function login(){return new Promise(function(ok){
+var PIN='1618';
+function pinGate(){return new Promise(function(ok){
+  try{if(localStorage.getItem('rk_pin')===PIN)return ok();}catch(e){}
   var b=document.createElement('div');b.id='loginBox';
-  b.innerHTML='<form><img src="android-icon-192x192.png" alt=""><b>REKONSi</b><input type="email" id="lgE" placeholder="Email" required autocomplete="username"><input type="password" id="lgP" placeholder="Password" required autocomplete="current-password"><button>Masuk</button><div class="err" id="lgX"></div></form>';
-  document.body.appendChild(b);
-  b.querySelector('form').onsubmit=async function(ev){ev.preventDefault();
-    var r=await sb.auth.signInWithPassword({email:b.querySelector('#lgE').value.trim(),password:b.querySelector('#lgP').value});
-    if(r.error){b.querySelector('#lgX').textContent='Login gagal: '+r.error.message;return;}
-    sess=r.data.session;b.remove();ok();};
+  b.innerHTML='<form><img src="android-icon-192x192.png" alt=""><b>REKONSi</b><input type="password" id="lgP" inputmode="numeric" maxlength="8" placeholder="PIN" required autocomplete="off"><button>Masuk</button><div class="err" id="lgX"></div></form>';
+  document.body.appendChild(b);var i=b.querySelector('#lgP');i.focus();
+  b.querySelector('form').onsubmit=function(ev){ev.preventDefault();
+    if(i.value!==PIN){b.querySelector('#lgX').textContent='PIN salah';i.value='';return;}
+    try{localStorage.setItem('rk_pin',PIN);}catch(e){}b.remove();ok();};
 });}
 async function start(){
+  await pinGate();
   if(!window.supabase){st('📴 Offline');return;}
   sb=supabase.createClient(SB_URL,SB_KEY);
-  if(REQUIRE_LOGIN){
-    sess=(await sb.auth.getSession()).data.session;
-    if(!sess)await login();
-    outBtn.hidden=false;
-    outBtn.onclick=async function(){if(confirm('Keluar dari akun?')){await sb.auth.signOut();location.reload();}};
-  }
+  outBtn.hidden=false;outBtn.title='Kunci (minta PIN lagi)';
+  outBtn.onclick=function(){try{localStorage.removeItem('rk_pin');}catch(e){}location.reload();};
   await window.__pjReady;
   try{var c=await kget('um');if(c&&!window.__umGet().length){var u=des(c);if(u.length)window.__umApply(u,'Data tersimpan di perangkat • '+u.length+' baris');}}catch(e){}
   await syncAll();
