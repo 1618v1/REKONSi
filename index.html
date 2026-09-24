@@ -580,7 +580,7 @@ html[data-theme="dark"] #tab-rekonsiliasi,#rekonFrame{background:#0f1724}
               <button type="button" onclick="processFile()" id="processBtn">Proses Excel</button>
               <button type="button" onclick="saveExcel()" id="save" disabled>Save Excel Hasil</button>
             </div>
-            <div class="hint">Parsing berjalan di Web Worker (tidak membekukan UI). Data disimpan ke IndexedDB. Data lama baru diganti setelah file baru selesai diproses dengan sukses.</div>
+            <div class="hint">Parsing berjalan di Web Worker (tidak membekukan UI). Data disimpan ke IndexedDB. Upload bersifat <b>gabung per bulan</b>: bulan yang ada di file baru menggantikan bulan yang sama; bulan lain (mis. September) tetap aman. Data lama baru diganti setelah file baru selesai diproses dengan sukses.</div>
           </div>
           <div class="menu-section danger-section">
             <div class="menu-label">🗑 Hapus Data per Bulan</div>
@@ -1032,12 +1032,10 @@ function fallbackSyncParse(buf){
       if (bulan) months.add(bulan);
       return o;
     }).filter(Boolean);
-    // Parsing sukses sampai sini -> baru boleh mengganti data lama.
-    rows = out;
-    populateFiltersFromMeta({products:[...products].sort(), sales:[...sales].sort(), months:[...months].sort().reverse()});
-    _inFlightWorker = false;
-    const btn = document.getElementById('processBtn'); if (btn) btn.disabled = false;
-    postParseDone(raw.length);
+    // Parsing sukses -> serahkan ke jalur yang sama dengan worker (merge per bulan).
+    _pendingChunks = [out];
+    _inFlightWorker = true;
+    onWorkerMsg({data:{type:'done', products:[...products], sales:[...sales], months:[...months]}});
   } catch(err){
     console.error(err);
     _inFlightWorker = false;
@@ -1054,6 +1052,7 @@ let _memIdSeq = 0;
 // TIDAK disentuh sampai parsing file baru benar-benar sukses (event 'done'),
 // supaya kalau parsing gagal di tengah jalan, data lama tetap utuh (fix data loss).
 let _pendingChunks = [];
+let _mergeNote = '';
 
 async function processFile(){
   // Guard supaya dua proses tidak berjalan bersamaan & saling menimpa (fix race condition)
@@ -1110,32 +1109,44 @@ async function onWorkerMsg(e){
       showBusy('Menyimpan hasil parsing...');
       const allNewRows = _pendingChunks.flat();
       _pendingChunks = [];
-      // Baru di titik ini kita ganti data lama dengan data baru, karena parsing sudah sukses.
+      // MERGE PER BULAN: hanya bulan yang ada di file baru yang diganti.
+      // Bulan lain yang sudah tersimpan (mis. September) TIDAK dihapus.
+      const newMonthSet = new Set(allNewRows.map(r => r.bulan || ''));
+      const monthList = [...newMonthSet];
+      _mergeNote = ' — ' + allNewRows.length.toLocaleString('id-ID') + ' baris dari file ini; bulan diperbarui: ' +
+        (monthList.length ? monthList.map(k => k ? monthLabel(k) : 'Tanpa Tanggal').join(', ') : '-') +
+        '; bulan lain tidak diubah.';
       if (useIDB){
         try {
           await db.transaction('rw', db.tx, db.meta, async () => {
-            await db.tx.clear();
+            if (monthList.length) await db.tx.where('bulan').anyOf(monthList).delete();
             if (allNewRows.length) await db.tx.bulkPut(allNewRows);
           });
         } catch(err){
           console.error('Gagal menyimpan ke IndexedDB, mencoba fallback in-memori:', err);
           useIDB = false;
         }
-        const sortProducts = (m.products || []).slice().sort();
-        const sortSales    = (m.sales    || []).slice().sort();
-        const sortMonths   = (m.months   || []).slice().sort().reverse();
         if (useIDB){
+          const oldMeta = async k => ((await db.meta.get(k)) || {}).value || [];
+          const union = (a, b) => [...new Set([...(a || []), ...(b || [])])];
+          const sortProducts = union(await oldMeta('products'), m.products).sort();
+          const sortSales    = union(await oldMeta('sales'),    m.sales).sort();
+          const sortMonths   = union(await oldMeta('months'),   m.months).sort().reverse();
           await db.meta.put({key:'products', value:sortProducts});
           await db.meta.put({key:'sales',    value:sortSales});
           await db.meta.put({key:'months',   value:sortMonths});
           if (window.__cloudTouch) window.__cloudTouch('pj');
+          m.products = sortProducts; m.sales = sortSales; m.months = sortMonths;
         }
-        m.products = sortProducts; m.sales = sortSales; m.months = sortMonths;
       }
       if (!useIDB){
-        _memIdSeq = 0;
+        const kept = rows.filter(r => !newMonthSet.has(r.bulan || ''));
+        _memIdSeq = kept.reduce((mx, r) => Math.max(mx, r._id || 0), 0);
         allNewRows.forEach(r => { r._id = ++_memIdSeq; });
-        rows = allNewRows;
+        rows = kept.concat(allNewRows);
+        m.products = [...new Set(rows.map(r => r.produk).filter(Boolean))].sort();
+        m.sales    = [...new Set(rows.map(r => r.sales).filter(Boolean))].sort();
+        m.months   = [...new Set(rows.map(r => r.bulan).filter(Boolean))].sort().reverse();
       }
       populateFiltersFromMeta(m);
       _inFlightWorker = false;
@@ -1175,7 +1186,7 @@ async function postParseDone(){
     populateFiltersDOM().catch(()=>{});
     if (typeof buildColPicker === 'function') buildColPicker();
     showActiveTab();
-    setStatus('Berhasil diproses: ' + _parseFileName + ' (' + totalRows.toLocaleString('id-ID') + ' baris) — tersimpan di IndexedDB' + (useIDB ? '' : ', fallback in-memori'));
+    setStatus('Berhasil diproses: ' + _parseFileName + ' — total data kini ' + totalRows.toLocaleString('id-ID') + ' baris, tersimpan di IndexedDB' + (useIDB ? '' : ' (fallback in-memori)') + _mergeNote);
     closeDd();
     hideBusy();
   } catch(err){
@@ -2666,6 +2677,11 @@ window.__umApply = function(rows, label){
   updateKpi(); renderDetail(); renderHarian(); renderBulanan(); renderRekap();
   document.getElementById('footer').textContent = label;
 };
+function umMonthKey(x){
+  const p=String(x&&x.Tanggal!=null?x.Tanggal:'').split('/');
+  return (p.length===3&&/^\d{1,2}$/.test(p[1])&&/^\d{4}$/.test(p[2])&&+p[1]>=1&&+p[1]<=12)
+    ? p[2]+'-'+String(+p[1]).padStart(2,'0') : '';
+}
 async function handleFile(file){
   if(!file)return;
   // rows dibangun di variabel lokal dulu; state.rows lama baru diganti
@@ -2674,10 +2690,18 @@ async function handleFile(file){
     const data=await file.arrayBuffer(),wb=XLSX.read(data,{type:'array',cellDates:true});
     let rows=[];
     wb.SheetNames.forEach(name=>rows.push(...extractSheet(wb.Sheets[name],name)));
-    state.rows=rows;
-    state.rekap=buildRekap(rows);
-    state.daily=buildDaily(rows);
-    state.monthly=buildMonthly(rows);
+    if(!rows.length){alert('Tidak ada baris faktur yang valid di file ini.\n\nData yang sudah ada tidak diubah.');return;}
+    // MERGE PER BULAN: hanya bulan yang ada di file baru yang diganti.
+    // Bulan lain yang sudah ada (mis. September) TIDAK dihapus.
+    const newMonths=new Set(rows.map(umMonthKey));
+    const kept=state.rows.filter(x=>!newMonths.has(umMonthKey(x)));
+    const merged=kept.concat(rows).sort((a,b)=>(umMonthKey(a)||'9999-99').localeCompare(umMonthKey(b)||'9999-99'));
+    const bn=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const lbl=[...newMonths].sort().map(k=>k?bn[+k.slice(5)-1]+' '+k.slice(0,4):'Tanpa Tanggal').join(', ');
+    state.rows=merged;
+    state.rekap=buildRekap(merged);
+    state.daily=buildDaily(merged);
+    state.monthly=buildMonthly(merged);
 
     populateSalesFilter();
     populateDateFilter();
@@ -2685,7 +2709,7 @@ async function handleFile(file){
 
     updateKpi();renderDetail();renderHarian();renderBulanan();renderRekap();
     if(window.__cloudTouch)window.__cloudTouch('um');
-    document.getElementById('footer').textContent=`File: ${file.name} • ${wb.SheetNames.length} sheet dibaca • hanya baris faktur yang valid yang diekstrak.`;
+    document.getElementById('footer').textContent=`File: ${file.name} • ${wb.SheetNames.length} sheet dibaca • ${rows.length.toLocaleString('id-ID')} baris faktur • bulan diperbarui: ${lbl} • bulan lain tidak diubah • total data kini ${merged.length.toLocaleString('id-ID')} baris.`;
   } catch(err){
     console.error('handleFile ERROR:', err);
     alert('Gagal membaca file:\n\n' + (err && err.message ? err.message : err) + '\n\nData sebelumnya tidak berubah.');
