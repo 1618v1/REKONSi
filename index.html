@@ -3,6 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f2c4d">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="android-icon-192x192.png">
+<link rel="apple-touch-icon" href="apple-icon-152x152.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="REKONSi">
 <title>Rekap Penjualan &amp; Laporan Uang Masuk</title>
 <script>(function(){try{var t=localStorage.getItem('reko-theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');else if(t==='light')document.documentElement.removeAttribute('data-theme');else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
@@ -504,6 +511,7 @@ html[data-theme="dark"] #tab-rekonsiliasi,#rekonFrame{background:#0f1724}
 <button type="button" class="main-tab" data-target="tab-uangmasuk">💰 Uang Masuk</button>
 <button type="button" class="main-tab" data-target="tab-rekonsiliasi">🔎 Rekonsiliasi</button>
 <button type="button" class="theme-toggle" id="globalThemeBtn" title="Mode gelap / terang">🌙</button>
+<button type="button" id="cloudBtn" title="Sinkron cloud">☁</button><button type="button" id="pwaBtn" hidden title="Pasang aplikasi">⬇ Instal</button><button type="button" id="logoutBtn" hidden title="Keluar">⎋</button>
 </div>
 <div id="tab-penjualan" class="main-panel active">
 
@@ -1120,6 +1128,7 @@ async function onWorkerMsg(e){
           await db.meta.put({key:'products', value:sortProducts});
           await db.meta.put({key:'sales',    value:sortSales});
           await db.meta.put({key:'months',   value:sortMonths});
+          if (window.__cloudTouch) window.__cloudTouch('pj');
         }
         m.products = sortProducts; m.sales = sortSales; m.months = sortMonths;
       }
@@ -1399,6 +1408,7 @@ async function deleteMonthData(){
     await db.tx.where('bulan').equals(m).delete();
     const remaining = ((await db.meta.get('months'))?.value || []).filter(x => x !== m);
     await db.meta.put({key:'months', value: remaining});
+    if (window.__cloudTouch) window.__cloudTouch('pj');
     // Ensure current table view is reset; persisted filter pointing to deleted
     // month would otherwise leave an empty grid. Re-run population, then point
     // the view at a month that still exists (or to "all months").
@@ -1451,6 +1461,7 @@ async function applyBulkHargaBeliByMonth(){
     if (!matches.length) return alert('Tidak ada transaksi produk "' + product + '" pada ' + monthLabel(m) + '.');
     if (!confirm('Ubah Harga Beli "' + product + '" pada ' + monthLabel(m) + '?\n\nJumlah: ' + matches.length.toLocaleString('id-ID') + '\nBaru: ' + rp(v))) return;
     await db.tx.where('bulan').equals(m).and(r => U(r.produk) === U(product)).modify({hargaBeli: v});
+    if (window.__cloudTouch) window.__cloudTouch('pj');
     await refreshAfterDataChange();
     setStatus('Harga Beli "' + product + '" pada ' + monthLabel(m) + ' diubah menjadi ' + rp(v) + '.');
     closeDd();
@@ -2095,6 +2106,7 @@ async function cancelSelectedTransactions(){
         if (r) r.batal = 1;
       }
     }
+    if (window.__cloudTouch) window.__cloudTouch('pj');
     // Refresh semua view
     await refreshAfterDataChange();
     // Refetch dan re-render
@@ -2209,7 +2221,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-(async function init(){
+window.__pjReady = (async function init(){
   await initDB();
   await restoreFromDB();
 })();
@@ -2241,6 +2253,21 @@ try {
         'ALAMAT': r.alamat ?? r.Alamat ?? ''
       };});
     }catch(e){ return []; }
+  };
+  window.__pjCloud = {
+    ok: function(){ return !!(useIDB && db); },
+    count: function(){ return db.tx.count(); },
+    all: function(){ return db.tx.toArray(); },
+    meta: async function(){ const g = async k => ((await db.meta.get(k)) || {}).value || [];
+      return {products: await g('products'), sales: await g('sales'), months: await g('months')}; },
+    replace: async function(rs, m){
+      await db.transaction('rw', db.tx, db.meta, async () => {
+        await db.tx.clear(); if (rs.length) await db.tx.bulkPut(rs);
+        for (const k of ['products','sales','months']) await db.meta.put({key:k, value:(m && m[k]) || []});
+      });
+      if (document.getElementById('save').disabled && rs.length) await restoreFromDB();
+      else await refreshAfterDataChange();
+    }
   };
   window.__pjOnShow = function(){
     try { var p0 = document.getElementById('panel_s0');
@@ -2631,6 +2658,13 @@ function saveAll(){
   
   XLSX.writeFile(wb,'Laporan_Uang_Masuk_PRO.xlsx');
 }
+window.__umGet = function(){ return state.rows; };
+window.__umApply = function(rows, label){
+  state.rows=rows; state.rekap=buildRekap(rows); state.daily=buildDaily(rows); state.monthly=buildMonthly(rows);
+  populateSalesFilter(); populateDateFilter(); populateMonthFilters();
+  updateKpi(); renderDetail(); renderHarian(); renderBulanan(); renderRekap();
+  document.getElementById('footer').textContent = label;
+};
 async function handleFile(file){
   if(!file)return;
   // rows dibangun di variabel lokal dulu; state.rows lama baru diganti
@@ -2649,6 +2683,7 @@ async function handleFile(file){
     populateMonthFilters();
 
     updateKpi();renderDetail();renderHarian();renderBulanan();renderRekap();
+    if(window.__cloudTouch)window.__cloudTouch('um');
     document.getElementById('footer').textContent=`File: ${file.name} • ${wb.SheetNames.length} sheet dibaca • hanya baris faktur yang valid yang diekstrak.`;
   } catch(err){
     console.error('handleFile ERROR:', err);
@@ -2842,5 +2877,133 @@ try { window.toggleDropdown = toggleDropdown; } catch(e){}
 </script>
 
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
+<style>
+#cloudBtn,#pwaBtn,#logoutBtn{appearance:none;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#e8eef6;height:24px;border-radius:6px;cursor:pointer;font-size:11px;padding:0 8px;margin-left:5px;white-space:nowrap}
+#cloudBtn:hover,#pwaBtn:hover,#logoutBtn:hover{background:rgba(255,255,255,.22)}
+#pwaBtn[hidden],#logoutBtn[hidden]{display:none}
+#loginBox{position:fixed;inset:0;z-index:99999;background:#0f2c4d;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif}
+#loginBox form{background:#fff;color:#172033;padding:22px;border-radius:12px;width:min(320px,90vw);display:grid;gap:10px;text-align:center}
+#loginBox img{width:72px;margin:auto;border-radius:14px}
+#loginBox input,#loginBox button{padding:9px;font-size:14px;border-radius:8px;border:1px solid #b8c4d6}
+#loginBox button{background:#305496;color:#fff;border:0;cursor:pointer}
+#loginBox .err{color:#c0392b;font-size:12px;min-height:14px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
+<script>
+(function(){
+var SB_URL='https://pgpdnqijznrjzgdqlqrm.supabase.co',
+    SB_KEY='sb_publishable_oj7U6A-xsRL_p-aDpMhWTw_JzXk_Qfb',
+    REQUIRE_LOGIN=true,   // false = tanpa login (butuh policy anon di SQL, data jadi publik)
+    CHUNK=1000;
+var sb=null,sess=null,busy=false,timers={},dirty={},H={};
+var cdb=new Dexie('rekon_cloud');cdb.version(1).stores({kv:'&k'});
+var kget=function(k){return cdb.kv.get(k).then(function(r){return r&&r.v;});},kset=function(k,v){return cdb.kv.put({k:k,v:v});};
+var btn=document.getElementById('cloudBtn'),outBtn=document.getElementById('logoutBtn');
+function st(t,tip){btn.textContent=t;btn.title=tip||t;}
+function ser(v){return JSON.stringify(v,function(k,x){return this[k] instanceof Date?{__d:this[k].toISOString()}:x;});}
+function des(s){return JSON.parse(s,function(k,x){return x&&x.__d?new Date(x.__d):x;});}
+function hash(s){var h=5381;for(var i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return s.length+':'+h;}
+function fail(e){console.warn('Cloud sync:',e);st(navigator.onLine?'⚠ Sync gagal':'📴 Offline',(e&&e.message)||'');}
+
+async function local(ds){
+  if(ds==='pj'){var P=window.__pjCloud;return P.ok()?{rows:await P.all(),extra:await P.meta()}:null;}
+  return {rows:window.__umGet(),extra:null};
+}
+async function push(ds){
+  if(!sb||(REQUIRE_LOGIN&&!sess))return;
+  try{
+    st('☁ Mengunggah…');
+    var d=await local(ds);if(!d)return;
+    var n=Math.ceil(d.rows.length/CHUNK),rev=Date.now(),h=H[ds]=H[ds]||[];
+    for(var i=0;i<n;i++){
+      var s=ser(d.rows.slice(i*CHUNK,(i+1)*CHUNK)),k=hash(s);
+      if(h[i]===k)continue;
+      var r=await sb.from('rekon_data').upsert({dataset:ds,part:i,payload:JSON.parse(s)});
+      if(r.error)throw r.error;h[i]=k;
+    }
+    h.length=n;
+    var x=await sb.from('rekon_data').delete().eq('dataset',ds).gte('part',n);if(x.error)throw x.error;
+    await kset('rev_'+ds,rev); // simpan sebelum meta, agar event realtime milik sendiri diabaikan
+    if(ds==='um')await kset('um',ser(d.rows));
+    var m=await sb.from('rekon_meta').upsert({dataset:ds,rev:rev,parts:n,total:d.rows.length,extra:d.extra,updated_at:new Date().toISOString()});
+    if(m.error)throw m.error;
+    dirty[ds]=0;st('☁ Tersinkron');
+  }catch(e){H[ds]=[];fail(e);}
+}
+async function pull(ds,force){
+  var r=await sb.from('rekon_meta').select('*').eq('dataset',ds).maybeSingle();
+  if(r.error)throw r.error;
+  var m=r.data;if(!m)return null;
+  if(!force&&(await kget('rev_'+ds))===m.rev)return false;
+  var ps=await Promise.all(Array.from({length:m.parts},function(_,i){
+    return sb.from('rekon_data').select('payload').eq('dataset',ds).eq('part',i).single();}));
+  var rows=[];
+  ps.forEach(function(p){if(p.error)throw p.error;rows=rows.concat(des(JSON.stringify(p.data.payload)));});
+  if(ds==='pj'){if(!window.__pjCloud.ok())return false;await window.__pjCloud.replace(rows,m.extra||{});}
+  else{await kset('um',ser(rows));if(rows.length)window.__umApply(rows,'Data dari cloud • '+rows.length+' baris');}
+  H[ds]=[];await kset('rev_'+ds,m.rev);return true;
+}
+async function syncAll(force){
+  if(busy||!sb)return;busy=true;st('☁ Menyinkron…');
+  try{
+    var ch=false;
+    for(var ds of ['pj','um']){
+      if(dirty[ds]||timers[ds]){await push(ds);continue;}   // perubahan lokal belum terkirim: jangan ditimpa
+      var res=await pull(ds,force);
+      if(res)ch=true;
+      if(res===null){ // cloud masih kosong -> unggah data yang sudah ada di perangkat ini
+        var has=ds==='pj'?(window.__pjCloud.ok()&&await window.__pjCloud.count()>0):window.__umGet().length>0;
+        if(has)await push(ds);
+      }
+    }
+    if(ch&&window.__syncRekonData)window.__syncRekonData();
+    st('☁ Tersinkron','Terakhir: '+new Date().toLocaleTimeString('id-ID'));
+  }catch(e){fail(e);}
+  busy=false;
+}
+window.__cloudTouch=function(ds){
+  dirty[ds]=1;clearTimeout(timers[ds]);
+  timers[ds]=setTimeout(function(){timers[ds]=0;push(ds);},ds==='pj'?2500:500);
+};
+
+function login(){return new Promise(function(ok){
+  var b=document.createElement('div');b.id='loginBox';
+  b.innerHTML='<form><img src="android-icon-192x192.png" alt=""><b>REKONSi</b><input type="email" id="lgE" placeholder="Email" required autocomplete="username"><input type="password" id="lgP" placeholder="Password" required autocomplete="current-password"><button>Masuk</button><div class="err" id="lgX"></div></form>';
+  document.body.appendChild(b);
+  b.querySelector('form').onsubmit=async function(ev){ev.preventDefault();
+    var r=await sb.auth.signInWithPassword({email:b.querySelector('#lgE').value.trim(),password:b.querySelector('#lgP').value});
+    if(r.error){b.querySelector('#lgX').textContent='Login gagal: '+r.error.message;return;}
+    sess=r.data.session;b.remove();ok();};
+});}
+async function start(){
+  if(!window.supabase){st('📴 Offline');return;}
+  sb=supabase.createClient(SB_URL,SB_KEY);
+  if(REQUIRE_LOGIN){
+    sess=(await sb.auth.getSession()).data.session;
+    if(!sess)await login();
+    outBtn.hidden=false;
+    outBtn.onclick=async function(){if(confirm('Keluar dari akun?')){await sb.auth.signOut();location.reload();}};
+  }
+  await window.__pjReady;
+  try{var c=await kget('um');if(c&&!window.__umGet().length){var u=des(c);if(u.length)window.__umApply(u,'Data tersimpan di perangkat • '+u.length+' baris');}}catch(e){}
+  await syncAll();
+  sb.channel('rk').on('postgres_changes',{event:'*',schema:'public',table:'rekon_meta'},function(){syncAll();}).subscribe();
+  setInterval(syncAll,60000);
+  addEventListener('online',function(){syncAll();});
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)syncAll();});
+  btn.onclick=function(){syncAll(true);};
+}
+st('☁ …');start().catch(fail);
+
+/* ---- PWA ---- */
+var pwa=document.getElementById('pwaBtn'),dp=null;
+if('serviceWorker' in navigator)addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(e){console.warn('SW',e);});});
+addEventListener('beforeinstallprompt',function(e){e.preventDefault();dp=e;pwa.hidden=false;});
+pwa.onclick=async function(){if(!dp)return;dp.prompt();await dp.userChoice;dp=null;pwa.hidden=true;};
+addEventListener('appinstalled',function(){pwa.hidden=true;});
+if(/iphone|ipad|ipod/i.test(navigator.userAgent)&&!navigator.standalone){pwa.hidden=false;pwa.onclick=function(){alert('Di Safari: ketuk tombol Bagikan lalu pilih "Tambah ke Layar Utama".');};}
+})();
+</script>
+
 </body>
 </html>
