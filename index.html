@@ -871,12 +871,14 @@ html[data-theme="dark"] #arFrameMsg{color:#cbd5e1}
     Array.prototype.forEach.call(document.querySelectorAll('.main-panel'), function(p){
       p.classList.toggle('active', p.id === target);
     });
+    /* Biarkan browser mengecat tab baru terlebih dahulu; proses berat dijalankan setelah paint. */
     if (target === 'tab-ar'){
-      var af = document.getElementById('arFrame');
-      if (typeof window.__arOnShow === 'function'){ setTimeout(function(){ try { window.__arOnShow(); } catch(e){} }, 40); }
+      setTimeout(function(){
+        if (typeof window.__arOnShow === 'function'){ try { window.__arOnShow(); } catch(e){} }
+      }, 0);
     }
     if (target === 'tab-penjualan' && typeof window.__pjOnShow === 'function'){
-      setTimeout(function(){ try { window.__pjOnShow(); } catch(e){} }, 40);
+      setTimeout(function(){ try { window.__pjOnShow(); } catch(e){} }, 0);
     }
   }
   Array.prototype.forEach.call(document.querySelectorAll('.main-tab'), function(b){
@@ -887,7 +889,8 @@ html[data-theme="dark"] #arFrameMsg{color:#cbd5e1}
         history.replaceState(null, '', h);
       }
       if(b.dataset.target==='tab-rekonsiliasi' && typeof window.__syncRekonData==='function'){
-        setTimeout(function(){window.__syncRekonData();},80);
+        /* Sinkronisasi tetap dilakukan setelah tab terlihat, tanpa menahan perpindahan. */
+        setTimeout(function(){window.__syncRekonData();},0);
       }
     });
   });
@@ -2752,10 +2755,33 @@ function saveAll(){
   
   XLSX.writeFile(wb,'Laporan_Uang_Masuk_PRO.xlsx');
 }
+let umInitialMonthSet = false;
+function setInitialUangMasukMonth(){
+  if(umInitialMonthSet || !state.rows.length) return;
+  const nowMonth = String(new Date().getMonth()+1).padStart(2,'0');
+  const available = new Set(state.rows.map(x => {
+    const p = String(x && x.Tanggal != null ? x.Tanggal : '').split('/');
+    return (p.length===3 && /^\d{1,2}$/.test(p[1]) && /^\d{4}$/.test(p[2]) && +p[1]>=1 && +p[1]<=12)
+      ? String(+p[1]).padStart(2,'0') : '';
+  }).filter(Boolean));
+  // Saat pertama membuka Uang Masuk, pilih bulan berjalan bila tersedia.
+  // Jika belum ada data bulan berjalan, gunakan bulan data paling baru.
+  let target = available.has(nowMonth) ? nowMonth : '';
+  if(!target){
+    const sorted = [...available].sort((a,b)=>+b-+a);
+    target = sorted[0] || '';
+  }
+  ['filterBulanDetail','filterBulanHarian','filterBulanBulanan','filterBulanRekap'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.value=target;
+  });
+  umInitialMonthSet = true;
+}
 window.__umGet = function(){ return state.rows; };
 window.__umApply = function(rows, label){
   state.rows=rows; state.rekap=buildRekap(rows); state.daily=buildDaily(rows); state.monthly=buildMonthly(rows);
   populateSalesFilter(); populateDateFilter(); populateMonthFilters();
+  setInitialUangMasukMonth();
   updateKpi(); renderDetail(); renderHarian(); renderBulanan(); renderRekap();
   document.getElementById('footer').textContent = label;
 };
