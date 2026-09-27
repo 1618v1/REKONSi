@@ -557,6 +557,27 @@ html[data-theme="dark"] #tab-cek .kpi .rpval.warn{color:#fbbf24}
 #tab-cek select{padding:7px 12px;font-size:12px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:var(--ink);outline:none;cursor:pointer}
 #tab-cek .action{border:1px solid #cbd5e1;border-radius:6px;padding:7px 14px;font-weight:600;font-size:12px;cursor:pointer;background:#fff;color:var(--ink)}
 #tab-cek .action:hover{background:#f1f5f9;border-color:#94a3b8}
+#tab-cek .ck-month-picker{position:relative;display:inline-block}
+#tab-cek .ck-month-btn{padding:7px 12px;font-size:12px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:var(--ink);font-weight:600;cursor:pointer;white-space:nowrap}
+#tab-cek .ck-month-btn:hover{background:#f1f5f9;border-color:#94a3b8}
+#tab-cek .ck-month-btn .count{font-size:10px;color:var(--primary)}
+#tab-cek .ck-month-menu{display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:3000;background:#fff;border:1px solid #dce4ec;border-radius:9px;box-shadow:0 10px 28px rgba(15,23,42,.18);min-width:280px;max-width:min(340px,90vw);overflow:hidden}
+#tab-cek .ck-month-picker.open .ck-month-menu{display:block}
+#tab-cek .ck-month-head{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px 11px;border-bottom:1px solid #e5eaf1;font-size:11px}
+#tab-cek .ck-month-head span{display:flex;gap:4px}
+#tab-cek .ck-month-head button{border:1px solid #cbd5e1;background:#f8fafc;border-radius:5px;padding:3px 6px;font-size:10px;cursor:pointer}
+#tab-cek .ck-month-head button:hover{background:#e2e8f0}
+#tab-cek .ck-month-checks{max-height:270px;overflow:auto;padding:6px}
+#tab-cek .ck-month-checks label{display:flex;align-items:center;gap:7px;padding:7px 8px;border-radius:5px;font-size:12px;cursor:pointer}
+#tab-cek .ck-month-checks label:hover{background:#f1f5f9}
+#tab-cek .ck-month-checks input{margin:0;cursor:pointer;accent-color:#1f4e79}
+html[data-theme="dark"] #tab-cek .ck-month-btn{background:#1a2535;color:#e2e8f0;border-color:#3a5068}
+html[data-theme="dark"] #tab-cek .ck-month-btn:hover{background:#243447}
+html[data-theme="dark"] #tab-cek .ck-month-menu{background:#1a2535;border-color:#2a3f55}
+html[data-theme="dark"] #tab-cek .ck-month-head{border-bottom-color:#2a3f55}
+html[data-theme="dark"] #tab-cek .ck-month-head button{background:#152033;color:#e2e8f0;border-color:#3a5068}
+html[data-theme="dark"] #tab-cek .ck-month-checks label:hover{background:#243447}
+
 #tab-cek .table-card{background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 4px 12px rgba(20,40,70,.05);overflow:hidden;width:100%}
 #tab-cek .table-wrap{overflow:auto;max-height:65vh;width:100%}
 #tab-cek table{border-collapse:separate;border-spacing:0;width:100%;font-size:12px}
@@ -769,7 +790,26 @@ html[data-theme="dark"] #tab-cek .footer{color:#94a3b8}
 
   <div class="toolbar">
     <input id="ckSearch" class="search" placeholder="&#128269; Cari no faktur / sales / customer / alamat / produk...">
-    <select id="ckMonth"><option value="">Semua Bulan</option></select>
+    <div class="ck-month-picker" id="ckPjMonthPicker">
+      <button type="button" class="ck-month-btn" onclick="toggleCkMonthPicker('pj')">📅 Bulan Penjualan <span id="ckPjMonthCount"></span> ▾</button>
+      <div class="ck-month-menu" id="ckPjMonthMenu">
+        <div class="ck-month-head">
+          <b>Pilih bulan Penjualan</b>
+          <span><button type="button" onclick="ckMonthAll('pj',true)">Semua</button><button type="button" onclick="ckMonthAll('pj',false)">Kosongkan</button></span>
+        </div>
+        <div id="ckPjMonthChecks" class="ck-month-checks"></div>
+      </div>
+    </div>
+    <div class="ck-month-picker" id="ckUmMonthPicker">
+      <button type="button" class="ck-month-btn" onclick="toggleCkMonthPicker('um')">💰 Bulan Uang Masuk <span id="ckUmMonthCount"></span> ▾</button>
+      <div class="ck-month-menu" id="ckUmMonthMenu">
+        <div class="ck-month-head">
+          <b>Pilih bulan Uang Masuk</b>
+          <span><button type="button" onclick="ckMonthAll('um',true)">Semua</button><button type="button" onclick="ckMonthAll('um',false)">Kosongkan</button></span>
+        </div>
+        <div id="ckUmMonthChecks" class="ck-month-checks"></div>
+      </div>
+    </div>
     <select id="ckPay"><option value="">Semua Pembayaran</option><option value="CASH DROPPING">Cash Dropping</option><option value="PIUTANG TEMPO">Piutang Tempo</option></select>
     <select id="ckProd"><option value="">Semua Produk</option><option value="Minyak">Minyak (Fitri)</option><option value="Rupa Rupa">Rupa Rupa</option></select>
     <button class="action" id="ckReset">Reset</button>
@@ -990,7 +1030,11 @@ function monthLabel(k){if(!k)return 'Semua Bulan';var p=k.split('-');return new 
 /* helper rupiah utk KPI CEK */
 var rpID = function(x){ return 'Rp ' + Math.round(Number(x)||0).toLocaleString('id-ID'); };
 
-var CK={groups:[],umSet:{},pjSet:{},umByKey:{},orphans:[],tab:'ada',loaded:false};
+var CK={
+  groups:[],umRows:[],umSet:{},pjSet:{},umByKey:{},orphans:[],
+  tab:'ada',loaded:false,
+  pjMonths:[],umMonths:[]
+};
 
 function groupPenjualan(pj){
   var map=new Map();
@@ -1021,41 +1065,145 @@ function groupPenjualan(pj){
   return out;
 }
 
+function ckUmMonth(u){
+  return monthKey(u && u.Tanggal);
+}
+
+function uniqueSortedMonths(arr){
+  var a=[]; (arr||[]).forEach(function(m){if(m&&a.indexOf(m)<0)a.push(m);});
+  return a.sort().reverse();
+}
+
+function ckMonthLabel(m){return monthLabel(m);}
+
+function ckSelectedMonths(type){
+  return type==='pj' ? CK.pjMonths : CK.umMonths;
+}
+
+function ckMonthIsSelected(type,m){
+  var sel=ckSelectedMonths(type);
+  return sel.length===0 || sel.indexOf(m)>=0;
+}
+
+function renderCkMonthChecks(type,months){
+  var box=$(type==='pj'?'ckPjMonthChecks':'ckUmMonthChecks');
+  if(!box)return;
+  var selected=ckSelectedMonths(type);
+  box.innerHTML=months.map(function(m){
+    var checked=selected.indexOf(m)>=0;
+    return '<label><input type="checkbox" value="'+esc(m)+'" '+(checked?'checked':'')+
+      ' onchange="ckMonthChanged(\''+type+'\')"><span>'+esc(ckMonthLabel(m))+'</span></label>';
+  }).join('');
+  ckUpdateMonthCount(type);
+}
+
+function ckUpdateMonthCount(type){
+  var el=$(type==='pj'?'ckPjMonthCount':'ckUmMonthCount');
+  var months=type==='pj'?CK.pjAllMonths:CK.umAllMonths;
+  var selected=ckSelectedMonths(type);
+  if(!el)return;
+  el.textContent=selected.length ? '('+selected.length+' dipilih)' : '(semua)';
+}
+
+function buildMonthFilter(){
+  CK.pjAllMonths=uniqueSortedMonths(CK.groups.map(function(g){return g.month;}));
+  CK.umAllMonths=uniqueSortedMonths(CK.umRows.map(function(u){return ckUmMonth(u);}));
+
+  // Jika sebelumnya belum ada pilihan, default semua bulan.
+  // Jika pilihan lama masih tersedia, pertahankan pilihan tersebut.
+  CK.pjMonths=CK.pjMonths.filter(function(m){return CK.pjAllMonths.indexOf(m)>=0;});
+  CK.umMonths=CK.umMonths.filter(function(m){return CK.umAllMonths.indexOf(m)>=0;});
+
+  renderCkMonthChecks('pj',CK.pjAllMonths);
+  renderCkMonthChecks('um',CK.umAllMonths);
+}
+
+function ckMonthChanged(type){
+  var box=$(type==='pj'?'ckPjMonthChecks':'ckUmMonthChecks');
+  var vals=Array.from(box.querySelectorAll('input[type=checkbox]:checked')).map(function(x){return x.value;});
+  if(type==='pj')CK.pjMonths=vals;else CK.umMonths=vals;
+  ckUpdateMonthCount(type);
+  renderAll();
+}
+
+function ckMonthAll(type,yes){
+  var months=type==='pj'?CK.pjAllMonths:CK.umAllMonths;
+  if(type==='pj')CK.pjMonths=yes?months.slice():[];else CK.umMonths=yes?months.slice():[];
+  renderCkMonthChecks(type,months);
+  renderAll();
+}
+
+function toggleCkMonthPicker(type){
+  var id=type==='pj'?'ckPjMonthPicker':'ckUmMonthPicker';
+  var el=$(id);if(!el)return;
+  document.querySelectorAll('#tab-cek .ck-month-picker.open').forEach(function(x){if(x!==el)x.classList.remove('open');});
+  el.classList.toggle('open');
+}
+
+function closeCkMonthPickers(){
+  document.querySelectorAll('#tab-cek .ck-month-picker.open').forEach(function(x){x.classList.remove('open');});
+}
+
 async function loadCek(){
   try{$('ckInfo').textContent='Membaca data...';}catch(e){}
   try{if(window.__pjReady)await window.__pjReady;}catch(e){}
   var pj=[],um=[];
   try{pj=await window.__getPenjualanForRekon()||[];}catch(e){}
   try{um=window.__getUangMasukForRekon()||[];}catch(e){}
+
   var groups=groupPenjualan(pj);
-  var umSet={},pjSet={},umByKey={};
+  var pjSet={},umSet={},umByKey={},orphans=[];
   groups.forEach(function(g){pjSet[norm(g.faktur)]=1;});
-  var orphans=[];
+
   (um||[]).forEach(function(u){
     var fk=norm(u['No Faktur']);if(!fk)return;
+    u.__ckMonth=ckUmMonth(u);
     umSet[fk]=1;
     umByKey[fk]=(umByKey[fk]||0)+(Number(u.Total)||0);
-    if(!pjSet[fk])orphans.push(u);
   });
-  CK={groups:groups,umSet:umSet,pjSet:pjSet,umByKey:umByKey,orphans:orphans,tab:CK.tab,loaded:true};
+
+  // Simpan SEMUA baris UM. Penyaringan bulan dilakukan di CEK,
+  // bukan saat data dimuat, sehingga bulan Penjualan dan UM independen.
+  CK.umRows=um||[];
+
+  CK.orphans=(um||[]).filter(function(u){
+    return !pjSet[norm(u['No Faktur'])];
+  });
+
+  CK.groups=groups;CK.umSet=umSet;CK.pjSet=pjSet;CK.umByKey=umByKey;
+  CK.tab=CK.tab||'ada';CK.loaded=true;
+
   buildMonthFilter();
   renderAll();
 }
 
-function buildMonthFilter(){
-  var months=[];CK.groups.forEach(function(g){if(g.month&&months.indexOf(g.month)<0)months.push(g.month);});
-  months.sort().reverse();
-  var cur=$('ckMonth').value;
-  $('ckMonth').innerHTML='<option value="">Semua Bulan</option>'+months.map(function(m){return '<option value="'+esc(m)+'">'+esc(monthLabel(m))+'</option>';}).join('');
-  if(months.indexOf(cur)>=0)$('ckMonth').value=cur;
+function filteredUmRows(){
+  var q=($('ckSearch').value||'').toLowerCase().trim();
+  return CK.umRows.filter(function(u){
+    var m=u.__ckMonth||ckUmMonth(u);
+    if(!ckMonthIsSelected('um',m))return false;
+    if(q){
+      var hay=((u['No Faktur']||'')+' '+(u.Sales||'')+' '+(u['Nama Toko']||'')+' '+(u.Alamat||'')+' '+(u.Jenis||'')).toLowerCase();
+      if(hay.indexOf(q)<0)return false;
+    }
+    return true;
+  });
 }
 
 function filteredGroups(ada){
   var q=($('ckSearch').value||'').toLowerCase().trim();
-  var mo=$('ckMonth').value,pay=$('ckPay').value,prod=$('ckProd').value;
+  var pay=$('ckPay').value,prod=$('ckProd').value;
+
+  // Status "ADA DI UM" ditentukan terhadap UM yang masuk
+  // pada bulan-bulan UM yang dicentang.
+  var selectedUm={};
+  filteredUmRows().forEach(function(u){
+    var fk=norm(u['No Faktur']);if(fk)selectedUm[fk]=1;
+  });
+
   return CK.groups.filter(function(g){
-    if(!!CK.umSet[norm(g.faktur)]!==ada)return false;
-    if(mo&&g.month!==mo)return false;
+    if(!ckMonthIsSelected('pj',g.month))return false;
+    if(!!selectedUm[norm(g.faktur)]!==ada)return false;
     if(pay&&g.payLabel!==pay)return false;
     if(prod&&g.kats.indexOf(prod)<0)return false;
     if(q){
@@ -1073,34 +1221,50 @@ function splitSub(arr){
 
 function renderAll(){
   if(!CK.loaded)return;
-  var adaG=CK.groups.filter(function(g){return !!CK.umSet[norm(g.faktur)];});
-  var tdkG=CK.groups.filter(function(g){return !CK.umSet[norm(g.faktur)];});
 
-  // === hitung nominal rupiah (dua sisi: Penjualan & UM) ===
-  var sumAllPj=0, sumAdaPj=0, sumAdaUm=0, sumTidak=0;
-  CK.groups.forEach(function(g){
-    var k=norm(g.faktur), t=Number(g.total)||0;
+  // UM yang benar-benar diperhitungkan = hanya bulan UM yang dicentang.
+  var selectedUmRows=filteredUmRows();
+  var selectedUm={};
+  var selectedUmByKey={};
+  selectedUmRows.forEach(function(u){
+    var k=norm(u['No Faktur']);if(!k)return;
+    selectedUm[k]=1;
+    selectedUmByKey[k]=(selectedUmByKey[k]||0)+(Number(u.Total)||0);
+  });
+
+  // Penjualan juga dibatasi oleh bulan Penjualan yang dicentang.
+  var selectedPj=CK.groups.filter(function(g){return ckMonthIsSelected('pj',g.month);});
+  var adaG=selectedPj.filter(function(g){return !!selectedUm[norm(g.faktur)];});
+  var tdkG=selectedPj.filter(function(g){return !selectedUm[norm(g.faktur)];});
+
+  var sumAllPj=0,sumAdaPj=0,sumAdaUm=0,sumTidak=0;
+  selectedPj.forEach(function(g){
+    var k=norm(g.faktur),t=Number(g.total)||0;
     sumAllPj+=t;
-    if(CK.umSet[k]){ sumAdaPj+=t; sumAdaUm+=(CK.umByKey[k]||0); }
-    else            sumTidak+=t;
+    if(selectedUm[k]){sumAdaPj+=t;sumAdaUm+=(selectedUmByKey[k]||0);}
+    else sumTidak+=t;
+  });
+
+  // Orphan UM mengikuti pilihan bulan UM, bukan bulan Penjualan.
+  var selectedOrphans=selectedUmRows.filter(function(u){
+    return !CK.pjSet[norm(u['No Faktur'])];
   });
   var sumOrphan=0;
-  CK.orphans.forEach(function(u){ sumOrphan+=Number(u.Total)||0; });
+  selectedOrphans.forEach(function(u){sumOrphan+=Number(u.Total)||0;});
 
-  // isi KPI
-  $('ckTotalF').textContent    = CK.groups.length.toLocaleString('id-ID');
-  $('ckTotalFRp').textContent  = rpID(sumAllPj);
+  $('ckTotalF').textContent=selectedPj.length.toLocaleString('id-ID');
+  $('ckTotalFRp').textContent=rpID(sumAllPj);
 
-  $('ckAda').textContent       = adaG.length.toLocaleString('id-ID');
-  $('ckAdaRp').textContent     = rpID(sumAdaUm);
-  $('ckAdaSub').textContent    = splitSub(adaG) + ' • PJ: ' + rpID(sumAdaPj);
+  $('ckAda').textContent=adaG.length.toLocaleString('id-ID');
+  $('ckAdaRp').textContent=rpID(sumAdaUm);
+  $('ckAdaSub').textContent=splitSub(adaG)+' • PJ: '+rpID(sumAdaPj);
 
-  $('ckTidak').textContent     = tdkG.length.toLocaleString('id-ID');
-  $('ckTidakRp').textContent   = rpID(sumTidak);
-  $('ckTidakSub').textContent  = splitSub(tdkG);
+  $('ckTidak').textContent=tdkG.length.toLocaleString('id-ID');
+  $('ckTidakRp').textContent=rpID(sumTidak);
+  $('ckTidakSub').textContent=splitSub(tdkG);
 
-  $('ckUmOrphan').textContent   = CK.orphans.length.toLocaleString('id-ID');
-  $('ckUmOrphanRp').textContent = rpID(sumOrphan);
+  $('ckUmOrphan').textContent=selectedOrphans.length.toLocaleString('id-ID');
+  $('ckUmOrphanRp').textContent=rpID(sumOrphan);
 
   var isPj=CK.tab!=='umorphan';
   $('ckTablePj').style.display=isPj?'':'none';
@@ -1108,10 +1272,29 @@ function renderAll(){
 
   if(isPj){
     var ada=CK.tab==='ada';
-    var rows=filteredGroups(ada);
+    var rows=ada?adaG.filter(function(g){
+      var q=($('ckSearch').value||'').toLowerCase().trim(),pay=$('ckPay').value,prod=$('ckProd').value;
+      if(pay&&g.payLabel!==pay)return false;
+      if(prod&&g.kats.indexOf(prod)<0)return false;
+      if(q){
+        var hay=(g.faktur+' '+g.sales+' '+g.customer+' '+g.alamat+' '+g.prodText).toLowerCase();
+        if(hay.indexOf(q)<0)return false;
+      }
+      return true;
+    }):tdkG.filter(function(g){
+      var q=($('ckSearch').value||'').toLowerCase().trim(),pay=$('ckPay').value,prod=$('ckProd').value;
+      if(pay&&g.payLabel!==pay)return false;
+      if(prod&&g.kats.indexOf(prod)<0)return false;
+      if(q){
+        var hay=(g.faktur+' '+g.sales+' '+g.customer+' '+g.alamat+' '+g.prodText).toLowerCase();
+        if(hay.indexOf(q)<0)return false;
+      }
+      return true;
+    });
+
     var body=$('ckBody');
     if(!rows.length){
-      body.innerHTML='<tr><td colspan="11" class="empty">'+(CK.groups.length?'Tidak ada data yang cocok dengan filter.':'Belum ada data Penjualan — upload dulu di tab Penjualan.')+'</td></tr>';
+      body.innerHTML='<tr><td colspan="11" class="empty">'+(selectedPj.length?'Tidak ada data yang cocok dengan kombinasi filter bulan.':'Tidak ada bulan Penjualan yang dipilih.')+'</td></tr>';
     }else{
       var tq=0,tt=0;
       var html=rows.map(function(g,i){
@@ -1127,12 +1310,14 @@ function renderAll(){
       body.innerHTML=html;
     }
   }else{
-    var q=($('ckSearch').value||'').toLowerCase().trim();
-    var rows2=CK.orphans;
-    if(q)rows2=rows2.filter(function(u){return ((u['No Faktur']||'')+' '+(u.Sales||'')+' '+(u['Nama Toko']||'')+' '+(u.Alamat||'')).toLowerCase().indexOf(q)>=0;});
+    var rows2=selectedOrphans;
+    var q2=($('ckSearch').value||'').toLowerCase().trim();
+    if(q2)rows2=rows2.filter(function(u){
+      return ((u['No Faktur']||'')+' '+(u.Sales||'')+' '+(u['Nama Toko']||'')+' '+(u.Alamat||'')+' '+(u.Jenis||'')).toLowerCase().indexOf(q2)>=0;
+    });
     var body2=$('ckBodyUm');
     if(!rows2.length){
-      body2.innerHTML='<tr><td colspan="10" class="empty">'+(CK.orphans.length===0?'Semua faktur di Uang Masuk ada di Penjualan. &#127881;':'Tidak ada data yang cocok.')+'</td></tr>';
+      body2.innerHTML='<tr><td colspan="10" class="empty">'+(selectedUmRows.length===0?'Tidak ada bulan Uang Masuk yang dipilih.':(selectedOrphans.length===0?'Semua faktur pada bulan Uang Masuk terpilih ada di Penjualan. &#127881;':'Tidak ada data yang cocok.'))+'</td></tr>';
     }else{
       var tg=0,tt2=0;
       var html2=rows2.map(function(u,i){
@@ -1148,21 +1333,24 @@ function renderAll(){
     }
   }
 
-  // footer rekonsiliasi dua sisi
   $('ckInfo').innerHTML =
-    'PJ&nbsp;: ' + rpID(sumAllPj) + ' = ' + rpID(sumAdaPj) + ' (ada) + ' + rpID(sumTidak) + ' (tidak ada)' +
-    '<br>UM: ' + rpID(sumAdaUm + sumOrphan) + ' = ' + rpID(sumAdaUm) + ' (ada) + ' + rpID(sumOrphan) + ' (orphan)';
+    'PJ&nbsp;: '+rpID(sumAllPj)+' = '+rpID(sumAdaPj)+' (ada) + '+rpID(sumTidak)+' (tidak ada)'+
+    '<br>UM&nbsp;: '+rpID(sumAdaUm+sumOrphan)+' = '+rpID(sumAdaUm)+' (terkait PJ terpilih) + '+rpID(sumOrphan)+' (orphan)'+
+    '<br><span style="font-weight:600">Filter: Penjualan '+(CK.pjMonths.length?CK.pjMonths.map(ckMonthLabel).join(', '):'semua bulan')+
+    ' • Uang Masuk '+(CK.umMonths.length?CK.umMonths.map(ckMonthLabel).join(', '):'semua bulan')+'</span>';
 }
 
 function exportCek(){
   if(!CK.loaded)return alert('Klik "Muat Ulang" dulu.');
   var data,name;
   if(CK.tab==='umorphan'){
-    data=CK.orphans.map(function(u){return {'Tanggal UM':u.Tanggal||'','No Faktur':u['No Faktur']||'','Sales':u.Sales||'','Nama Toko':u['Nama Toko']||'','Alamat':u.Alamat||'','Jenis':u.Jenis||'','Tagihan':Number(u.Tagihan)||0,'Total UM':Number(u.Total)||0,'Keterangan':'TIDAK ADA DI PENJUALAN'};});
+    var orp=filteredUmRows().filter(function(u){return !CK.pjSet[norm(u['No Faktur'])];});
+    data=orp.map(function(u){return {'Tanggal UM':u.Tanggal||'','No Faktur':u['No Faktur']||'','Sales':u.Sales||'','Nama Toko':u['Nama Toko']||'','Alamat':u.Alamat||'','Jenis':u.Jenis||'','Tagihan':Number(u.Tagihan)||0,'Total UM':Number(u.Total)||0,'Keterangan':'TIDAK ADA DI PENJUALAN'};});
     name='CEK_UM_Tanpa_Penjualan.xlsx';
   }else{
     var ada=CK.tab==='ada';
-    data=filteredGroups(ada).map(function(g,i){return {'No':i+1,'Tanggal':fmtTgl(g.tgl),'No. Faktur':g.faktur,'Sales':g.sales,'Customer/Toko':g.customer,'Alamat':g.alamat,'Produk':g.prodText,'Kategori Produk':g.kats.join(' + '),'Qty':g.qty,'Total':g.total,'Pembayaran':g.payLabel,'Status':ada?'ADA DI UANG MASUK':'TIDAK ADA DI UANG MASUK'};});
+    var rows=filteredGroups(ada);
+    data=rows.map(function(g,i){return {'No':i+1,'Tanggal':fmtTgl(g.tgl),'No. Faktur':g.faktur,'Sales':g.sales,'Customer/Toko':g.customer,'Alamat':g.alamat,'Produk':g.prodText,'Kategori Produk':g.kats.join(' + '),'Qty':g.qty,'Total':g.total,'Pembayaran':g.payLabel,'Status':ada?'ADA DI UANG MASUK':'TIDAK ADA DI UANG MASUK'};});
     name=ada?'CEK_Penjualan_Ada_UM.xlsx':'CEK_Penjualan_Tidak_Ada_UM.xlsx';
   }
   if(!data.length)return alert('Belum ada data untuk disimpan.');
@@ -1181,10 +1369,18 @@ function bind(){
     };
   });
   $('ckSearch').oninput=renderAll;
-  $('ckMonth').onchange=renderAll;
   $('ckPay').onchange=renderAll;
   $('ckProd').onchange=renderAll;
-  $('ckReset').onclick=function(){$('ckSearch').value='';$('ckMonth').value='';$('ckPay').value='';$('ckProd').value='';renderAll();};
+  $('ckReset').onclick=function(){
+    $('ckSearch').value='';$('ckPay').value='';$('ckProd').value='';
+    CK.pjMonths=[];CK.umMonths=[];
+    renderCkMonthChecks('pj',CK.pjAllMonths||[]);
+    renderCkMonthChecks('um',CK.umAllMonths||[]);
+    renderAll();
+  };
+  document.addEventListener('click',function(e){
+    if(!e.target.closest('#tab-cek .ck-month-picker'))closeCkMonthPickers();
+  });
   $('ckExport').onclick=exportCek;
   $('ckRefresh').onclick=function(){loadCek();};
   var tabBtn=document.querySelector('.main-tab[data-target="tab-cek"]');
