@@ -1287,6 +1287,16 @@ function renderAll(){
   var sumOrphan=0;
   selectedOrphans.forEach(function(u){sumOrphan+=Number(u.Total)||0;});
 
+  // DIAGNOSTIK: total UM mentah tanpa syarat apapun (semua baris, semua bulan,
+  // cocok atau tidak) — untuk dibandingkan langsung dengan KPI di tab Uang Masuk.
+  var rawUmCount=CK.umRows.length, rawUmSum=0, rawUmNoFaktur=0, rawUmNoFakturSum=0;
+  CK.umRows.forEach(function(u){
+    var t=Number(u.Total)||0; rawUmSum+=t;
+    if(!norm(u['No Faktur'])){rawUmNoFaktur++; rawUmNoFakturSum+=t;}
+  });
+  var selUmCount=selectedUmRows.length, selUmSum=0;
+  selectedUmRows.forEach(function(u){selUmSum+=Number(u.Total)||0;});
+
   $('ckTotalF').textContent=selectedPj.length.toLocaleString('id-ID');
   $('ckTotalFRp').textContent=rpID(sumAllPj);
 
@@ -1372,7 +1382,11 @@ function renderAll(){
     'PJ&nbsp;: '+rpID(sumAllPj)+' = '+rpID(sumAdaPj)+' (ada) + '+rpID(sumTidak)+' (tidak ada)'+
     '<br>UM&nbsp;: '+rpID(sumAdaUm+sumOrphan)+' = '+rpID(sumAdaUm)+' (terkait PJ terpilih) + '+rpID(sumOrphan)+' (orphan)'+
     '<br><span style="font-weight:600">Filter: Penjualan '+(CK.pjMonths.length?CK.pjMonths.map(ckMonthLabel).join(', '):'semua bulan')+
-    ' • Uang Masuk '+(CK.umMonths.length?CK.umMonths.map(ckMonthLabel).join(', '):'semua bulan')+'</span>';
+    ' • Uang Masuk '+(CK.umMonths.length?CK.umMonths.map(ckMonthLabel).join(', '):'semua bulan')+'</span>'+
+    '<br><span style="color:#b91c1c;font-weight:700">DIAGNOSTIK — UM mentah (semua baris, tanpa filter/match): '+rawUmCount.toLocaleString('id-ID')+' baris, '+rpID(rawUmSum)+
+    ' | UM setelah filter bulan: '+selUmCount.toLocaleString('id-ID')+' baris, '+rpID(selUmSum)+
+    (rawUmNoFaktur?(' | '+rawUmNoFaktur.toLocaleString('id-ID')+' baris No.Faktur kosong senilai '+rpID(rawUmNoFakturSum)):'')+
+    '</span>';
 }
 
 function exportCek(){
