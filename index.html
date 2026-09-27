@@ -1033,7 +1033,9 @@ var rpID = function(x){ return 'Rp ' + Math.round(Number(x)||0).toLocaleString('
 var CK={
   groups:[],umRows:[],umSet:{},pjSet:{},umByKey:{},orphans:[],
   tab:'ada',loaded:false,
-  pjMonths:[],umMonths:[]
+  pjMonths:[],umMonths:[],
+  pjMonthsInit:false,umMonthsInit:false,
+  pjKnownMonths:[],umKnownMonths:[]
 };
 
 function groupPenjualan(pj){
@@ -1082,7 +1084,7 @@ function ckSelectedMonths(type){
 
 function ckMonthIsSelected(type,m){
   var sel=ckSelectedMonths(type);
-  return sel.length===0 || sel.indexOf(m)>=0;
+  return sel.indexOf(m)>=0;
 }
 
 function renderCkMonthChecks(type,months){
@@ -1102,17 +1104,36 @@ function ckUpdateMonthCount(type){
   var months=type==='pj'?CK.pjAllMonths:CK.umAllMonths;
   var selected=ckSelectedMonths(type);
   if(!el)return;
-  el.textContent=selected.length ? '('+selected.length+' dipilih)' : '(semua)';
+  if(selected.length===0)el.textContent='(kosong)';
+  else if(months.length && selected.length===months.length)el.textContent='(semua)';
+  else el.textContent='('+selected.length+' dipilih)';
 }
 
 function buildMonthFilter(){
   CK.pjAllMonths=uniqueSortedMonths(CK.groups.map(function(g){return g.month;}));
   CK.umAllMonths=uniqueSortedMonths(CK.umRows.map(function(u){return ckUmMonth(u);}));
 
-  // Jika sebelumnya belum ada pilihan, default semua bulan.
-  // Jika pilihan lama masih tersedia, pertahankan pilihan tersebut.
-  CK.pjMonths=CK.pjMonths.filter(function(m){return CK.pjAllMonths.indexOf(m)>=0;});
-  CK.umMonths=CK.umMonths.filter(function(m){return CK.umAllMonths.indexOf(m)>=0;});
+  if(!CK.pjMonthsInit){
+    // Pertama kali dimuat: pilih semua bulan secara eksplisit,
+    // supaya checkbox-nya tampak tercentang semua sejak awal.
+    CK.pjMonths=CK.pjAllMonths.slice();
+    CK.pjMonthsInit=true;
+  }else{
+    // Kunjungan berikutnya: pertahankan pilihan lama, buang bulan yang sudah tidak ada datanya.
+    CK.pjMonths=CK.pjMonths.filter(function(m){return CK.pjAllMonths.indexOf(m)>=0;});
+    // Bulan baru yang baru saja muncul (misalnya data baru diunggah) otomatis ikut dipilih.
+    CK.pjAllMonths.forEach(function(m){if(CK.pjMonths.indexOf(m)<0 && CK.pjKnownMonths.indexOf(m)<0)CK.pjMonths.push(m);});
+  }
+  CK.pjKnownMonths=CK.pjAllMonths.slice();
+
+  if(!CK.umMonthsInit){
+    CK.umMonths=CK.umAllMonths.slice();
+    CK.umMonthsInit=true;
+  }else{
+    CK.umMonths=CK.umMonths.filter(function(m){return CK.umAllMonths.indexOf(m)>=0;});
+    CK.umAllMonths.forEach(function(m){if(CK.umMonths.indexOf(m)<0 && CK.umKnownMonths.indexOf(m)<0)CK.umMonths.push(m);});
+  }
+  CK.umKnownMonths=CK.umAllMonths.slice();
 
   renderCkMonthChecks('pj',CK.pjAllMonths);
   renderCkMonthChecks('um',CK.umAllMonths);
@@ -1387,7 +1408,7 @@ function bind(){
   $('ckProd').onchange=renderAll;
   $('ckReset').onclick=function(){
     $('ckSearch').value='';$('ckPay').value='';$('ckProd').value='';
-    CK.pjMonths=[];CK.umMonths=[];
+    CK.pjMonths=(CK.pjAllMonths||[]).slice();CK.umMonths=(CK.umAllMonths||[]).slice();
     renderCkMonthChecks('pj',CK.pjAllMonths||[]);
     renderCkMonthChecks('um',CK.umAllMonths||[]);
     renderAll();
