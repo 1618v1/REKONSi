@@ -540,6 +540,15 @@ html[data-theme="dark"] #tab-uangmasuk .um-delete-box select{background:#1a2535;
 #tab-cek .kpi .label{font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
 #tab-cek .kpi .value{font-size:16px;font-weight:700;margin-top:4px;color:var(--primary)}
 #tab-cek .kpi .sub{font-size:9px;color:var(--muted);margin-top:1px}
+/* === TAMBAHAN: baris nominal rupiah di KPI card === */
+#tab-cek .kpi .rpval{font-size:13px;font-weight:800;margin-top:3px;color:#1f4e79;letter-spacing:.01em;font-variant-numeric:tabular-nums}
+#tab-cek .kpi .rpval.ok{color:#087443}
+#tab-cek .kpi .rpval.no{color:#dc2626}
+#tab-cek .kpi .rpval.warn{color:#d97706}
+html[data-theme="dark"] #tab-cek .kpi .rpval{color:#93c5fd}
+html[data-theme="dark"] #tab-cek .kpi .rpval.ok{color:#4ade80}
+html[data-theme="dark"] #tab-cek .kpi .rpval.no{color:#f87171}
+html[data-theme="dark"] #tab-cek .kpi .rpval.warn{color:#fbbf24}
 #tab-cek .ck-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
 #tab-cek .ck-tab{padding:8px 20px;border:none;background:#e2e8f0;color:var(--muted);font-weight:700;font-size:12px;cursor:pointer;border-radius:6px;transition:all .2s}
 #tab-cek .ck-tab:hover{background:#cbd5e1;color:var(--ink)}
@@ -725,10 +734,30 @@ html[data-theme="dark"] #tab-cek .footer{color:#94a3b8}
 <div id="tab-cek" class="main-panel">
 <main class="wrap">
   <section class="kpis">
-    <div class="kpi"><div class="label">FAKTUR PENJUALAN</div><div class="value" id="ckTotalF">0</div><div class="sub">faktur unik</div></div>
-    <div class="kpi"><div class="label">ADA DI UANG MASUK</div><div class="value" id="ckAda">0</div><div class="sub" id="ckAdaSub">-</div></div>
-    <div class="kpi"><div class="label">TIDAK ADA DI UM</div><div class="value" id="ckTidak">0</div><div class="sub" id="ckTidakSub">-</div></div>
-    <div class="kpi"><div class="label">UM TANPA PENJUALAN</div><div class="value" id="ckUmOrphan">0</div><div class="sub">faktur di UM tak dikenal</div></div>
+    <div class="kpi">
+      <div class="label">FAKTUR PENJUALAN</div>
+      <div class="value" id="ckTotalF">0</div>
+      <div class="sub">faktur unik</div>
+      <div class="rpval" id="ckTotalFRp">Rp 0</div>
+    </div>
+    <div class="kpi">
+      <div class="label">ADA DI UANG MASUK</div>
+      <div class="value" id="ckAda">0</div>
+      <div class="sub" id="ckAdaSub">-</div>
+      <div class="rpval ok" id="ckAdaRp">Rp 0</div>
+    </div>
+    <div class="kpi">
+      <div class="label">TIDAK ADA DI UM</div>
+      <div class="value" id="ckTidak">0</div>
+      <div class="sub" id="ckTidakSub">-</div>
+      <div class="rpval no" id="ckTidakRp">Rp 0</div>
+    </div>
+    <div class="kpi">
+      <div class="label">UM TANPA PENJUALAN</div>
+      <div class="value" id="ckUmOrphan">0</div>
+      <div class="sub">faktur di UM tak dikenal</div>
+      <div class="rpval warn" id="ckUmOrphanRp">Rp 0</div>
+    </div>
   </section>
 
   <div class="ck-tabs">
@@ -959,6 +988,9 @@ function fmtTgl(v){var d=toDate(v);return d?d.toLocaleDateString('id-ID'):(v?Str
 function monthKey(v){var d=toDate(v);return d?d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'):'';}
 function monthLabel(k){if(!k)return 'Semua Bulan';var p=k.split('-');return new Date(+p[0],+p[1]-1,1).toLocaleDateString('id-ID',{month:'long',year:'numeric'});}
 
+/* === TAMBAHAN: helper rupiah utk KPI CEK === */
+var rpID = function(x){ return 'Rp ' + Math.round(Number(x)||0).toLocaleString('id-ID'); };
+
 var CK={groups:[],umSet:{},pjSet:{},orphans:[],tab:'ada',loaded:false};
 
 function groupPenjualan(pj){
@@ -1043,12 +1075,30 @@ function renderAll(){
   if(!CK.loaded)return;
   var adaG=CK.groups.filter(function(g){return !!CK.umSet[norm(g.faktur)];});
   var tdkG=CK.groups.filter(function(g){return !CK.umSet[norm(g.faktur)];});
+
+  // === TAMBAHAN: hitung nominal rupiah ===
+  var sumAll=0, sumAda=0, sumTidak=0;
+  CK.groups.forEach(function(g){
+    var t=Number(g.total)||0;
+    sumAll+=t;
+    if(CK.umSet[norm(g.faktur)]) sumAda+=t; else sumTidak+=t;
+  });
+  var sumOrphan=0;
+  CK.orphans.forEach(function(u){ sumOrphan+=Number(u.Total)||0; });
+
   $('ckTotalF').textContent=CK.groups.length.toLocaleString('id-ID');
+  $('ckTotalFRp').textContent=rpID(sumAll);
+
   $('ckAda').textContent=adaG.length.toLocaleString('id-ID');
   $('ckAdaSub').textContent=splitSub(adaG);
+  $('ckAdaRp').textContent=rpID(sumAda);
+
   $('ckTidak').textContent=tdkG.length.toLocaleString('id-ID');
   $('ckTidakSub').textContent=splitSub(tdkG);
+  $('ckTidakRp').textContent=rpID(sumTidak);
+
   $('ckUmOrphan').textContent=CK.orphans.length.toLocaleString('id-ID');
+  $('ckUmOrphanRp').textContent=rpID(sumOrphan);
 
   var isPj=CK.tab!=='umorphan';
   $('ckTablePj').style.display=isPj?'':'none';
@@ -1074,7 +1124,7 @@ function renderAll(){
         '<td class="num">'+tq.toLocaleString('id-ID')+'</td><td class="num">'+rp(tt)+'</td><td colspan="2"></td></tr>';
       body.innerHTML=html;
     }
-    $('ckInfo').textContent=rows.length.toLocaleString('id-ID')+' faktur';
+    $('ckInfo').textContent=rows.length.toLocaleString('id-ID')+' faktur • '+rp(tt);
   }else{
     var q=($('ckSearch').value||'').toLowerCase().trim();
     var rows2=CK.orphans;
@@ -1095,7 +1145,7 @@ function renderAll(){
         '<td class="num">'+rp(tg)+'</td><td class="num">'+rp(tt2)+'</td><td></td></tr>';
       body2.innerHTML=html2;
     }
-    $('ckInfo').textContent=rows2.length.toLocaleString('id-ID')+' faktur';
+    $('ckInfo').textContent=rows2.length.toLocaleString('id-ID')+' faktur • '+rp(tt2);
   }
 }
 
@@ -3109,8 +3159,6 @@ try { window.toggleDropdown = toggleDropdown; } catch(e){}
 })();</script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
 
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
-
 <script>
 (function(){
   function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
@@ -3125,8 +3173,6 @@ try { window.toggleDropdown = toggleDropdown; } catch(e){}
   window.addEventListener('message',function(ev){if(!ev||ev.origin!==location.origin)return;if(ev.data&&ev.data.type==='REKON_THEME_CHANGED')applyGlobalTheme(!!ev.data.dark,true);});
 })();
 </script>
-
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
 <style>
 #cloudBtn,#pwaBtn,#logoutBtn{appearance:none;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#e8eef6;height:24px;border-radius:6px;cursor:pointer;font-size:11px;padding:0 8px;margin-left:5px;white-space:nowrap}
 #cloudBtn:hover,#pwaBtn:hover,#logoutBtn:hover{background:rgba(255,255,255,.22)}
@@ -3346,10 +3392,6 @@ addEventListener('appinstalled',function(){pwa.hidden=true;});
 if(/iphone|ipad|ipod/i.test(navigator.userAgent)&&!navigator.standalone){pwa.hidden=false;pwa.onclick=function(){alert('Di Safari: ketuk tombol Bagikan lalu pilih "Tambah ke Layar Utama".');};}
 })();
 </script>
-
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
-
 
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
 </body>
