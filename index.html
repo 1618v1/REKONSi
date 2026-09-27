@@ -540,7 +540,6 @@ html[data-theme="dark"] #tab-uangmasuk .um-delete-box select{background:#1a2535;
 #tab-cek .kpi .label{font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
 #tab-cek .kpi .value{font-size:16px;font-weight:700;margin-top:4px;color:var(--primary)}
 #tab-cek .kpi .sub{font-size:9px;color:var(--muted);margin-top:1px}
-/* === TAMBAHAN: baris nominal rupiah di KPI card === */
 #tab-cek .kpi .rpval{font-size:13px;font-weight:800;margin-top:3px;color:#1f4e79;letter-spacing:.01em;font-variant-numeric:tabular-nums}
 #tab-cek .kpi .rpval.ok{color:#087443}
 #tab-cek .kpi .rpval.no{color:#dc2626}
@@ -774,7 +773,7 @@ html[data-theme="dark"] #tab-cek .footer{color:#94a3b8}
     <select id="ckPay"><option value="">Semua Pembayaran</option><option value="CASH DROPPING">Cash Dropping</option><option value="PIUTANG TEMPO">Piutang Tempo</option></select>
     <select id="ckProd"><option value="">Semua Produk</option><option value="Minyak">Minyak (Fitri)</option><option value="Rupa Rupa">Rupa Rupa</option></select>
     <button class="action" id="ckReset">Reset</button>
-    <span id="ckInfo" style="font-size:11px;color:#667085;font-weight:700"></span>
+    <span id="ckInfo" style="font-size:11px;color:#667085;font-weight:700;line-height:1.5"></span>
   </div>
 
   <div class="table-card">
@@ -988,10 +987,10 @@ function fmtTgl(v){var d=toDate(v);return d?d.toLocaleDateString('id-ID'):(v?Str
 function monthKey(v){var d=toDate(v);return d?d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'):'';}
 function monthLabel(k){if(!k)return 'Semua Bulan';var p=k.split('-');return new Date(+p[0],+p[1]-1,1).toLocaleDateString('id-ID',{month:'long',year:'numeric'});}
 
-/* === TAMBAHAN: helper rupiah utk KPI CEK === */
+/* helper rupiah utk KPI CEK */
 var rpID = function(x){ return 'Rp ' + Math.round(Number(x)||0).toLocaleString('id-ID'); };
 
-var CK={groups:[],umSet:{},pjSet:{},orphans:[],tab:'ada',loaded:false};
+var CK={groups:[],umSet:{},pjSet:{},umByKey:{},orphans:[],tab:'ada',loaded:false};
 
 function groupPenjualan(pj){
   var map=new Map();
@@ -1024,20 +1023,21 @@ function groupPenjualan(pj){
 
 async function loadCek(){
   try{$('ckInfo').textContent='Membaca data...';}catch(e){}
-  try{if(window.__pjReady)await window.__pjReady();}catch(e){}
+  try{if(window.__pjReady)await window.__pjReady;}catch(e){}
   var pj=[],um=[];
   try{pj=await window.__getPenjualanForRekon()||[];}catch(e){}
   try{um=window.__getUangMasukForRekon()||[];}catch(e){}
   var groups=groupPenjualan(pj);
-  var umSet={},pjSet={};
+  var umSet={},pjSet={},umByKey={};
   groups.forEach(function(g){pjSet[norm(g.faktur)]=1;});
   var orphans=[];
   (um||[]).forEach(function(u){
     var fk=norm(u['No Faktur']);if(!fk)return;
     umSet[fk]=1;
+    umByKey[fk]=(umByKey[fk]||0)+(Number(u.Total)||0);
     if(!pjSet[fk])orphans.push(u);
   });
-  CK={groups:groups,umSet:umSet,pjSet:pjSet,orphans:orphans,tab:CK.tab,loaded:true};
+  CK={groups:groups,umSet:umSet,pjSet:pjSet,umByKey:umByKey,orphans:orphans,tab:CK.tab,loaded:true};
   buildMonthFilter();
   renderAll();
 }
@@ -1076,29 +1076,31 @@ function renderAll(){
   var adaG=CK.groups.filter(function(g){return !!CK.umSet[norm(g.faktur)];});
   var tdkG=CK.groups.filter(function(g){return !CK.umSet[norm(g.faktur)];});
 
-  // === TAMBAHAN: hitung nominal rupiah ===
-  var sumAll=0, sumAda=0, sumTidak=0;
+  // === hitung nominal rupiah (dua sisi: Penjualan & UM) ===
+  var sumAllPj=0, sumAdaPj=0, sumAdaUm=0, sumTidak=0;
   CK.groups.forEach(function(g){
-    var t=Number(g.total)||0;
-    sumAll+=t;
-    if(CK.umSet[norm(g.faktur)]) sumAda+=t; else sumTidak+=t;
+    var k=norm(g.faktur), t=Number(g.total)||0;
+    sumAllPj+=t;
+    if(CK.umSet[k]){ sumAdaPj+=t; sumAdaUm+=(CK.umByKey[k]||0); }
+    else            sumTidak+=t;
   });
   var sumOrphan=0;
   CK.orphans.forEach(function(u){ sumOrphan+=Number(u.Total)||0; });
 
-  $('ckTotalF').textContent=CK.groups.length.toLocaleString('id-ID');
-  $('ckTotalFRp').textContent=rpID(sumAll);
+  // isi KPI
+  $('ckTotalF').textContent    = CK.groups.length.toLocaleString('id-ID');
+  $('ckTotalFRp').textContent  = rpID(sumAllPj);
 
-  $('ckAda').textContent=adaG.length.toLocaleString('id-ID');
-  $('ckAdaSub').textContent=splitSub(adaG);
-  $('ckAdaRp').textContent=rpID(sumAda);
+  $('ckAda').textContent       = adaG.length.toLocaleString('id-ID');
+  $('ckAdaRp').textContent     = rpID(sumAdaUm);
+  $('ckAdaSub').textContent    = splitSub(adaG) + ' • PJ: ' + rpID(sumAdaPj);
 
-  $('ckTidak').textContent=tdkG.length.toLocaleString('id-ID');
-  $('ckTidakSub').textContent=splitSub(tdkG);
-  $('ckTidakRp').textContent=rpID(sumTidak);
+  $('ckTidak').textContent     = tdkG.length.toLocaleString('id-ID');
+  $('ckTidakRp').textContent   = rpID(sumTidak);
+  $('ckTidakSub').textContent  = splitSub(tdkG);
 
-  $('ckUmOrphan').textContent=CK.orphans.length.toLocaleString('id-ID');
-  $('ckUmOrphanRp').textContent=rpID(sumOrphan);
+  $('ckUmOrphan').textContent   = CK.orphans.length.toLocaleString('id-ID');
+  $('ckUmOrphanRp').textContent = rpID(sumOrphan);
 
   var isPj=CK.tab!=='umorphan';
   $('ckTablePj').style.display=isPj?'':'none';
@@ -1124,7 +1126,6 @@ function renderAll(){
         '<td class="num">'+tq.toLocaleString('id-ID')+'</td><td class="num">'+rp(tt)+'</td><td colspan="2"></td></tr>';
       body.innerHTML=html;
     }
-    $('ckInfo').textContent=rows.length.toLocaleString('id-ID')+' faktur • '+rp(tt);
   }else{
     var q=($('ckSearch').value||'').toLowerCase().trim();
     var rows2=CK.orphans;
@@ -1145,8 +1146,12 @@ function renderAll(){
         '<td class="num">'+rp(tg)+'</td><td class="num">'+rp(tt2)+'</td><td></td></tr>';
       body2.innerHTML=html2;
     }
-    $('ckInfo').textContent=rows2.length.toLocaleString('id-ID')+' faktur • '+rp(tt2);
   }
+
+  // footer rekonsiliasi dua sisi
+  $('ckInfo').innerHTML =
+    'PJ&nbsp;: ' + rpID(sumAllPj) + ' = ' + rpID(sumAdaPj) + ' (ada) + ' + rpID(sumTidak) + ' (tidak ada)' +
+    '<br>UM: ' + rpID(sumAdaUm + sumOrphan) + ' = ' + rpID(sumAdaUm) + ' (ada) + ' + rpID(sumOrphan) + ' (orphan)';
 }
 
 function exportCek(){
@@ -1213,7 +1218,6 @@ let rows = [];
 let filteredRows = [];
 let materialisedRows = [];
 let R = {};
-/* === FILTER: tambah `date` (tanggal tunggal, format yyyy-mm-dd dari <input type=date>) === */
 let filters = {month:'',date:'',sales:'',product:'',payment:''};
 let dataVersion = 0, s0KeyBuilt = '', s0Vis = [], s0FootHtml = '', s0Cols = '', s0Widths = {};
 let s0RowCache = null;
@@ -1572,12 +1576,11 @@ function materialise(){
   s0RowCache = null;
 }
 
-/* === HELPER: cek apakah timestamp r masuk ke tanggal yyyy-mm-dd === */
 function matchesDateFilter(r, dateStr){
   if (!dateStr) return true;
   const ts = (r._ts != null) ? r._ts : (() => { const d = toDate(r.tanggal); return d ? d.getTime() : null; })();
   if (ts == null) return false;
-  const parts = dateStr.split('-');   // yyyy-mm-dd
+  const parts = dateStr.split('-');
   if (parts.length !== 3) return true;
   const y = +parts[0], m = +parts[1], d = +parts[2];
   const day = new Date(ts);
@@ -2801,7 +2804,6 @@ function getFilteredRowsByMonth(month) {
         return parts.length === 3 && String(+parts[1]).padStart(2,'0') === mNorm;
     });
 }
-/* === HELPER BARU: filter bulan + tanggal (input yyyy-mm-dd → bandingkan dd/mm/yyyy) === */
 function getFilteredRowsByMonthDate(month, dateStr){
     let rows = getFilteredRowsByMonth(month);
     if (!dateStr) return rows;
@@ -3157,8 +3159,6 @@ window.onclick = function(event) {
 }
 try { window.toggleDropdown = toggleDropdown; } catch(e){}
 })();</script>
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
-
 <script>
 (function(){
   function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
@@ -3392,7 +3392,5 @@ addEventListener('appinstalled',function(){pwa.hidden=true;});
 if(/iphone|ipad|ipod/i.test(navigator.userAgent)&&!navigator.standalone){pwa.hidden=false;pwa.onclick=function(){alert('Di Safari: ketuk tombol Bagikan lalu pilih "Tambah ke Layar Utama".');};}
 })();
 </script>
-
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
 </body>
 </html>
