@@ -1402,6 +1402,12 @@ function bind(){
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+
+/* Expose ke window agar bisa dipanggil dari atribut onclick/onchange di HTML,
+   karena fungsi-fungsi ini dideklarasikan di dalam IIFE (scope lokal). */
+window.toggleCkMonthPicker=toggleCkMonthPicker;
+window.ckMonthAll=ckMonthAll;
+window.ckMonthChanged=ckMonthChanged;
 })();
 </script>
 
