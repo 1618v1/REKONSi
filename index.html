@@ -1135,13 +1135,27 @@ function ckMonthAll(type,yes){
 
 function toggleCkMonthPicker(type){
   var id=type==='pj'?'ckPjMonthPicker':'ckUmMonthPicker';
-  var el=$(id);if(!el)return;
-  document.querySelectorAll('#tab-cek .ck-month-picker.open').forEach(function(x){if(x!==el)x.classList.remove('open');});
-  el.classList.toggle('open');
+  var el=$(id); if(!el)return;
+  var menu=el.querySelector('.ck-month-menu');
+  if(!menu)return;
+  document.querySelectorAll('.ck-month-picker').forEach(function(x){
+    if(x!==el){
+      x.classList.remove('open');
+      var m=x.querySelector('.ck-month-menu');
+      if(m)m.style.display='none';
+    }
+  });
+  var willOpen=!el.classList.contains('open');
+  el.classList.toggle('open',willOpen);
+  menu.style.display=willOpen?'block':'none';
 }
 
 function closeCkMonthPickers(){
-  document.querySelectorAll('#tab-cek .ck-month-picker.open').forEach(function(x){x.classList.remove('open');});
+  document.querySelectorAll('.ck-month-picker').forEach(function(x){
+    x.classList.remove('open');
+    var m=x.querySelector('.ck-month-menu');
+    if(m)m.style.display='none';
+  });
 }
 
 async function loadCek(){
